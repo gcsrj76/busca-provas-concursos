@@ -41,7 +41,8 @@ class ConcursoRepository:
     def listar_todos():
         db = SessionLocal()
         try:
-            return db.query(ConcursoModel).options(joinedload(ConcursoModel.arquivos)).all()
+            # Adicionado o .order_by(ConcursoModel.id.asc()) para garantir a ordem de inserção
+            return db.query(ConcursoModel).options(joinedload(ConcursoModel.arquivos)).order_by(ConcursoModel.id.asc()).all()
         finally:
             db.close()
 

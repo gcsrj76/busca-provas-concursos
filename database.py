@@ -19,9 +19,9 @@ class ConcursoModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     url = Column(String, unique=True, nullable=False, index=True)
     titulo = Column(String, nullable=True)
+    ordem_coleta = Column(Integer, nullable=True)  # <-- ADICIONE ESTA LINHA
     coletado_em = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relacionamento: Permite acessar os arquivos a partir do concurso
     arquivos = relationship(
         "ArquivoProvaModel", back_populates="concurso", cascade="all, delete"
     )

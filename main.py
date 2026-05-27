@@ -11,6 +11,39 @@ ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
 
+class JanelaResultadosProvas(ctk.CTkToplevel):
+    """Nova janela separada para exibir os resultados da varredura de provas."""
+
+    def __init__(self, parent, texto_inicial=""):
+        super().__init__(parent)
+        
+        self.title("Resultados da Verificação de Provas")
+        self.geometry("750x500")
+        
+        # Garante que a janela apareça na frente da principal
+        self.lift()
+        self.focus_force()
+        
+        # --- TÍTULO DA NOVA TELA ---
+        self.lbl_titulo = ctk.CTkLabel(
+            self, text="Provas Objetivas Encontradas", font=("Arial", 16, "bold")
+        )
+        self.lbl_titulo.pack(pady=15)
+        
+        # --- ÁREA DE TEXTO DA NOVA TELA ---
+        self.txt_provas = ctk.CTkTextbox(self, width=700, height=400)
+        self.txt_provas.pack(padx=20, pady=10, fill="both", expand=True)
+        
+        if texto_inicial:
+            self.txt_provas.insert(tk.END, texto_inicial)
+            self.txt_provas.see(tk.END)
+
+    def adicionar_texto(self, texto):
+        """Método thread-safe para inserir texto nesta tela."""
+        self.txt_provas.insert(tk.END, texto)
+        self.txt_provas.see(tk.END)
+
+
 class ScraperApp(ctk.CTk):
 
     def __init__(self):
@@ -18,6 +51,9 @@ class ScraperApp(ctk.CTk):
 
         self.title("Coletor Avançado FGV - Pro")
         self.geometry("800x650")
+
+        # Atributo para guardar a referência da janela secundária
+        self.janela_provas = None
 
         # --- TÍTULO ---
         self.lbl_titulo = ctk.CTkLabel(
@@ -64,7 +100,7 @@ class ScraperApp(ctk.CTk):
         self.progresso.set(0)
         self.progresso.pack(pady=5)
 
-        # --- ÁREA DE TEXTO ---
+        # --- ÁREA DE TEXTO PRINCIPAL ---
         self.txt_resultados = ctk.CTkTextbox(self, width=750, height=380)
         self.txt_resultados.pack(padx=20, pady=10, fill="both", expand=True)
 
@@ -72,20 +108,12 @@ class ScraperApp(ctk.CTk):
         self.carregar_historico_banco()
 
     def carregar_historico_banco(self):
-        """Busca os concursos existentes no SQLite e joga na tela ao iniciar."""
         concursos_salvos = ConcursoRepository.listar_todos()
         
         if concursos_salvos:
             self.txt_resultados.insert(tk.END, "=== HISTÓRICO DE CONCURSOS CARREGADO ===\n\n")
             for c in concursos_salvos:
-                exibicao = f"🏛️ {c.titulo}\n🔗 {c.url}\n"
-                
-                if c.arquivos:
-                    exibicao += "  └─ Provas encontradas:\n"
-                    for arquivo in c.arquivos:
-                        exibicao += f"     📝 {arquivo.descricao}\n     📄 {arquivo.url_arquivo}\n"
-                
-                exibicao += "\n"
+                exibicao = f"🏛️ {c.titulo}\n🔗 {c.url}\n\n"
                 self.txt_resultados.insert(tk.END, exibicao)
             
             self.lbl_status.configure(
@@ -99,20 +127,24 @@ class ScraperApp(ctk.CTk):
     def travar_botoes(self):
         self.btn_iniciar.configure(state="disabled")
         self.btn_verificar.configure(state="disabled")
-        self.txt_resultados.delete("1.0", tk.END)
 
     def liberar_botoes(self):
         self.btn_iniciar.configure(state="normal")
         self.btn_verificar.configure(state="normal")
 
     def atualizar_interface_safe(
-        self, texto_status, valor_progresso, exibicao_texto=None
+        self, texto_status, valor_progresso, exibicao_texto=None, para_janela_provas=False
     ):
+        """Atualiza os elementos visuais. Suporta direcionar o texto para a janela secundária."""
         self.lbl_status.configure(text=texto_status)
         self.progresso.set(valor_progresso)
+        
         if exibicao_texto:
-            self.txt_resultados.insert(tk.END, exibicao_texto)
-            self.txt_resultados.see(tk.END)
+            if para_janela_provas and self.janela_provas and self.janela_provas.winfo_exists():
+                self.janela_provas.adicionar_texto(exibicao_texto)
+            else:
+                self.txt_resultados.insert(tk.END, exibicao_texto)
+                self.txt_resultados.see(tk.END)
 
     # --- LÓGICA DA ETAPA 1 (COLETA DE CONCURSOS) ---
     def disparar_coleta(self):
@@ -125,6 +157,7 @@ class ScraperApp(ctk.CTk):
             return
 
         self.travar_botoes()
+        self.txt_resultados.delete("1.0", tk.END) # Limpa apenas a lista principal na nova coleta
         ConcursoRepository.limpar_banco()
         self.lbl_status.configure(text="Status: Base limpa. Iniciando nova coleta...")
 
@@ -132,13 +165,14 @@ class ScraperApp(ctk.CTk):
             target=self.executar_scraping, args=(max_paginas,), daemon=True
         ).start()
 
-    # CORRIGIDO: de 'ejecutar_scraping' para 'executar_scraping'
     def executar_scraping(self, max_paginas):
         base_url = "https://conhecimento.fgv.br"
-        url_concursos = f"{base_url}/concursos"
+        url_concursos = f"{base_url}/concursos#tab-text-129-content"
+  
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
+
         novos_links = 0
 
         for pagina in range(0, max_paginas):
@@ -151,7 +185,9 @@ class ScraperApp(ctk.CTk):
                 if resposta.status_code != 200:
                     break
                 soup = BeautifulSoup(resposta.text, "html.parser")
-                view_content = soup.find("div", class_="view-content")
+
+                view_content = soup.select_one(".view-concursos-realizados .view-content")
+                
                 if not view_content:
                     break
                 
@@ -175,9 +211,16 @@ class ScraperApp(ctk.CTk):
     # --- LÓGICA DA ETAPA 2 (VERIFICAÇÃO DE PROVAS) ---
     def disparar_verificacao(self):
         self.travar_botoes()
+        
+        # Cria ou recria a janela secundária antes de iniciar a Thread
+        if self.janela_provas is None or not self.janela_provas.winfo_exists():
+            self.janela_provas = JanelaResultadosProvas(self, "=== INICIANDO VARREDURA DE PROVAS OBJETIVAS ===\n\n")
+        else:
+            self.janela_provas.txt_provas.delete("1.0", tk.END)
+            self.janela_provas.adicionar_texto("=== REINICIANDO VARREDURA DE PROVAS OBJETIVAS ===\n\n")
+
         threading.Thread(target=self.executar_verificacao_provas, daemon=True).start()
 
-    # CORRIGIDO: de 'ejecutar_verificacao_provas' para 'executar_verificacao_provas'
     def executar_verificacao_provas(self):
         concursos = ConcursoRepository.listar_todos()
         total_concursos = len(concursos)
@@ -189,6 +232,7 @@ class ScraperApp(ctk.CTk):
                 "Banco de dados vazio! Execute a Coleta primeiro.",
                 0,
                 "Nenhum concurso no banco para verificar.\n",
+                True # Direciona para a janela pop-up
             )
             self.after(0, self.liberar_botoes)
             return
@@ -209,14 +253,15 @@ class ScraperApp(ctk.CTk):
                     continue
 
                 soup = BeautifulSoup(resposta.text, "html.parser")
-                tabela = soup.find("table", class_="table")
+
+                tabela = soup.select_one("table.table")                
 
                 if not tabela:
                     continue
 
                 linhas = tabela.find_all("tr")
                 for linha in list(linhas):
-                    celulas = linha.find_all("td")
+                    celulas = table = linha.find_all("td")
                     for celula in celulas:
                         linhas_texto = [
                             t.strip() for t in celula.get_text("\n").split("\n") if t.strip()
@@ -256,16 +301,18 @@ class ScraperApp(ctk.CTk):
                                         if foi_salvo:
                                             total_provas_descobertas += 1
                                             print_msg = f"✨ [PROVA NOVA] Concurso: {concurso.titulo}\n📝 {descricao_completa}\n🔗 {url_arq_completa}\n\n"
-                                            self.after(0, self.atualizar_interface_safe, msg_status, porcentagem, print_msg)
+                                            # Modificado: Passamos True no final para renderizar na nova janela
+                                            self.after(0, self.atualizar_interface_safe, msg_status, porcentagem, print_msg, True)
 
                 time.sleep(1.2)
 
             except Exception as e:
-                self.after(0, self.atualizar_interface_safe, msg_status, porcentagem, f"⚠️ Erro ao acessar {concurso.url}: {e}\n")
+                self.after(0, self.atualizar_interface_safe, msg_status, porcentagem, f"⚠️ Erro ao acessar {concurso.url}: {e}\n", True)
                 continue
 
         msg_fim = f"Varredura de Provas Concluída! {total_provas_descobertas} novas inserções."
-        self.after(0, self.atualizar_interface_safe, msg_fim, 1.0, f"=== PROCESSO FINALIZADO ===\nTotal de novos PDFs/Links salvos: {total_provas_descobertas}\n")
+        fim_texto_bloco = f"=== PROCESSO FINALIZADO ===\nTotal de novos PDFs/Links salvos nesta sessão: {total_provas_descobertas}\n"
+        self.after(0, self.atualizar_interface_safe, msg_fim, 1.0, fim_texto_bloco, True)
         self.after(0, self.liberar_botoes)
 
 
