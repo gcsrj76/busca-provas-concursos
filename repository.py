@@ -1,21 +1,29 @@
-from database import ConcursoModel, SessionLocal
-
+from database import ArquivoProvaModel, ConcursoModel, SessionLocal
+from sqlalchemy.orm import joinedload
 
 class ConcursoRepository:
-
+    
     @staticmethod
-    def salvar_link(url: str, titulo: str = None) -> bool:
-        """Salva um link no banco de dados se ele ainda não existir.
-
-        Retorna True se foi salvo, False se já existia.
+    def limpar_banco():
+        """Apaga todos os registros de concursos. 
+        Os arquivos de provas vinculados serão apagados por cascata (Cascade Delete).
         """
         db = SessionLocal()
         try:
-            # Verifica se a URL já está cadastrada
-            existe = (
-                db.query(ConcursoModel).filter(ConcursoModel.url == url).first()
-            )
+            # Remove todos os registros da tabela de concursos
+            db.query(ConcursoModel).delete()
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            print(f"Erro ao limpar o banco de dados: {e}")
+        finally:
+            db.close()
 
+    @staticmethod
+    def salvar_link(url: str, titulo: str = None) -> bool:
+        db = SessionLocal()
+        try:
+            existe = db.query(ConcursoModel).filter(ConcursoModel.url == url).first()
             if not existe:
                 novo_concurso = ConcursoModel(url=url, titulo=titulo)
                 db.add(novo_concurso)
@@ -23,17 +31,34 @@ class ConcursoRepository:
                 return True
             return False
         except Exception as e:
-            db.rollback()  # Desfaz alterações em caso de erro
-            print(f"Erro ao salvar no banco: {e}")
+            db.rollback()
+            print(f"Erro ao salvar concurso: {e}")
             return False
         finally:
-            db.close()  # Garante o fechamento da conexão
+            db.close()
 
     @staticmethod
     def listar_todos():
-        """Retorna todos os concursos salvos no banco de dados."""
         db = SessionLocal()
         try:
-            return db.query(ConcursoModel).all()
+            return db.query(ConcursoModel).options(joinedload(ConcursoModel.arquivos)).all()
+        finally:
+            db.close()
+
+    @staticmethod
+    def salvar_arquivo_prova(concurso_id: int, descricao: str, url_arquivo: str) -> bool:
+        db = SessionLocal()
+        try:
+            existe = db.query(ArquivoProvaModel).filter(ArquivoProvaModel.url_arquivo == url_arquivo).first()
+            if not existe:
+                novo_arquivo = ArquivoProvaModel(concurso_id=concurso_id, descricao=descricao, url_arquivo=url_arquivo)
+                db.add(novo_arquivo)
+                db.commit()
+                return True
+            return False
+        except Exception as e:
+            db.rollback()
+            print(f"Erro ao salvar arquivo de prova: {e}")
+            return False
         finally:
             db.close()
