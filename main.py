@@ -38,7 +38,7 @@ class ScraperApp(ctk.CTk):
         self.lbl_paginas.pack(side="left", padx=10, pady=10)
 
         self.txt_paginas = ctk.CTkEntry(self.frame_config, width=60)
-        self.txt_paginas.insert(0, "3")
+        self.txt_paginas.insert(0, "1")
         self.txt_paginas.pack(side="left", padx=5, pady=10)
 
         # --- BOTÃO DE INICIAR ---
