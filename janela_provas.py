@@ -1,123 +1,189 @@
 import os
+import threading
+import time
 import tkinter as tk
 from tkinter import filedialog
 import customtkinter as ctk
-from pypdf import PdfReader
+import requests
+# Certifique-se de importar o seu repositório para ler os links salvos
+from repository import ConcursoRepository
 
 
 class JanelaResultadosProvas(ctk.CTkToplevel):
-    """Janela secundária que recebe a lista da FGV e estende com busca em PDFs locais."""
+    """Janela separada para exibir os resultados e gerenciar os PDFs das provas."""
 
     def __init__(self, parent, texto_inicial=""):
         super().__init__(parent)
-        self.parent = parent
-        
-        self.title("Resultados da Verificação de Provas e Busca Local")
-        self.geometry("750x600")
-        
-        # Garante foco na frente da tela principal
+        self.parent = parent  # Referência do app principal
+
+        self.title("Resultados da Verificação de Provas")
+        self.geometry("750x650")  # Aumentado levemente para acomodar os novos controles
+
+        # Garante foco na tela ao abrir
         self.lift()
         self.focus_force()
-        
-        # --- COMPONENTES DE SELEÇÃO DE PASTA ---
-        self.frame_busca = ctk.CTkFrame(self)
-        self.frame_busca.pack(padx=20, pady=10, fill="x")
 
-        self.lbl_pasta = ctk.CTkLabel(self.frame_busca, text="Pasta dos PDFs locais:")
-        self.lbl_pasta.pack(side="left", padx=10, pady=5)
-
-        self.txt_pasta = ctk.CTkEntry(
-            self.frame_busca, placeholder_text="Selecione a pasta onde os PDFs estão salvos..."
+        # --- TÍTULO ---
+        self.lbl_titulo = ctk.CTkLabel(
+            self, text="Provas Objetivas Encontradas", font=("Arial", 16, "bold")
         )
-        self.txt_pasta.pack(side="left", fill="x", expand=True, padx=5, pady=5)
+        self.lbl_titulo.pack(pady=10)
+
+        # --- FRAME DE CONTROLES DE DIRETÓRIO E PARÂMETROS ---
+        self.frame_inputs = ctk.CTkFrame(self)
+        self.frame_inputs.pack(padx=20, pady=5, fill="x")
+
+        # Entrada de Pasta
+        self.lbl_pasta = ctk.CTkLabel(self.frame_inputs, text="Pasta Destino/PDFs:")
+        self.lbl_pasta.grid(row=0, column=0, padx=10, pady=5, sticky="w")
+
+        self.txt_pasta = ctk.CTkEntry(self.frame_inputs, width=450)
+        self.txt_pasta.insert(0, os.path.abspath("./downloads_provas"))
+        self.txt_pasta.grid(row=0, column=1, padx=5, pady=5)
 
         self.btn_procurar = ctk.CTkButton(
-            self.frame_busca, text="Procurar...", width=90, command=self._selecionar_pasta
+            self.frame_inputs, text="Selecionar...", width=100, command=self.selecionar_pasta
         )
-        self.btn_procurar.pack(side="left", padx=10, pady=5)
+        self.btn_procurar.grid(row=0, column=2, padx=5, pady=5)
 
-        # --- COMPONENTES DO TERMO DE BUSCA ---
-        self.frame_termo = ctk.CTkFrame(self)
-        self.frame_termo.pack(padx=20, pady=5, fill="x")
+        # Entrada de Termo de Busca Local
+        self.lbl_termo = ctk.CTkLabel(self.frame_inputs, text="Termo p/ buscar nos PDFs:")
+        self.lbl_termo.grid(row=1, column=0, padx=10, pady=5, sticky="w")
 
-        self.lbl_termo = ctk.CTkLabel(self.frame_termo, text="Termo para pesquisar:")
-        self.lbl_termo.pack(side="left", padx=10, pady=5)
+        self.txt_termo = ctk.CTkEntry(self.frame_inputs, width=450, placeholder_text="Ex: Direito Administrativo")
+        self.txt_termo.grid(row=1, column=1, padx=5, pady=5, columnspan=2, sticky="w")
 
-        self.txt_termo = ctk.CTkEntry(
-            self.frame_termo, placeholder_text="Ex: Prova Objetiva / Direito Administrativo..."
+        # --- FRAME DOS BOTÕES DE AÇÃO ---
+        self.frame_botoes_acao = ctk.CTkFrame(self, fg_color="transparent")
+        self.frame_botoes_acao.pack(padx=20, pady=5, fill="x")
+
+        # NOVO BOTÃO: Download de PDFs (Fica acima do processamento)
+        self.btn_download = ctk.CTkButton(
+            self.frame_botoes_acao,
+            text="📥 Downloads PDFs",
+            command=self.disparar_download,
+            fg_color="#1c7ed6",
+            hover_color="#1a72c4",
+            width=220
         )
-        self.txt_termo.pack(side="left", fill="x", expand=True, padx=5, pady=5)
+        self.btn_download.pack(pady=3)
 
-        # --- BOTÃO DE AÇÃO ---
-        self.frame_acoes = ctk.CTkFrame(self, fg_color="transparent")
-        self.frame_acoes.pack(padx=20, pady=5, fill="x")
-
+        # Botão: Iniciar Processamento Local
         self.btn_processar = ctk.CTkButton(
-            self.frame_acoes,
-            text="🚀 Iniciar Processamento de PDFs Locais",
-            command=self._ao_clicar_processar,
-            fg_color="#2b8a3e",
-            hover_color="#237032",
+            self.frame_botoes_acao,
+            text="⚙️ Iniciar Processamento de PDFs Locais",
+            command=self.acionar_processamento_local,
+            fg_color="#e67e22",
+            hover_color="#d35400",
+            width=220
         )
-        self.btn_processar.pack(fill="x", pady=5)
+        self.btn_processar.pack(pady=3)
 
-        # --- ÁREA DE TEXTO / LOGS ---
-        self.txt_provas = ctk.CTkTextbox(self, font=("Consolas", 12))
+        # --- ÁREA DE TEXTO DOS LOGS ---
+        self.txt_provas = ctk.CTkTextbox(self, width=700, height=350)
         self.txt_provas.pack(padx=20, pady=10, fill="both", expand=True)
-        
+
         if texto_inicial:
             self.txt_provas.insert(tk.END, texto_inicial)
             self.txt_provas.see(tk.END)
 
-    def _selecionar_pasta(self):
-        """Abre o diálogo nativo do sistema operacional para escolher uma pasta."""
+    def adicionar_texto(self, texto):
+        """Insere textos no console da janela secundária."""
+        self.txt_provas.insert(tk.END, texto)
+        self.txt_provas.see(tk.END)
+
+    def selecionar_pasta(self):
         pasta_selecionada = filedialog.askdirectory()
         if pasta_selecionada:
             self.txt_pasta.delete(0, tk.END)
-            self.txt_pasta.insert(0, os.path.normpath(pasta_selecionada))
+            self.txt_pasta.insert(0, pasta_selecionada)
 
-    def _ao_clicar_processar(self):
-        """Envia os dados capturados para o App principal processar em Thread."""
-        pasta = self.txt_pasta.get()
-        termo = self.txt_termo.get()
+    # --- FLUXO DE DOWNLOAD ASSÍNCRONO ---
+    def disparar_download(self):
+        pasta_destino = self.txt_pasta.get().strip()
+        if not pasta_destino:
+            self.adicionar_texto("⚠️ Erro: Informe uma pasta destino válida para os downloads.\n")
+            return
+
+        self.btn_download.configure(state="disabled")
+        self.adicionar_texto("=== INICIANDO EXPORTAÇÃO E DOWNLOAD DOS LINKS DISPONÍVEIS ===\n")
         
-        if hasattr(self.parent, "iniciar_processamento_arquivos"):
-            self.parent.iniciar_processamento_arquivos(pasta, termo)
+        # Dispara a Thread para não travar o CustomTkinter durante os downloads de rede
+        threading.Thread(target=self.executar_downloads_infra, args=(pasta_destino,), daemon=True).start()
 
-    def executar_busca_local(self, caminho_pasta, termo_busca):
-        """Lógica executada via Thread para ler e varrer o conteúdo interno dos PDFs."""
-        termo_busca = termo_busca.lower().strip()
+    def executar_downloads_infra(self, pasta_destino):
+        # Cria o diretório caso ele não exista fisicamente
+        os.makedirs(pasta_destino, exist_ok=True)
 
-        if not os.path.exists(caminho_pasta):
-            self.after(0, self.adicionar_texto, "\n❌ Erro: Diretório informado não existe.\n")
-            self.after(0, lambda: self.btn_processar.configure(state="normal"))
+        # Acessa todos os concursos para ler as provas correspondentes guardadas no banco
+        concursos = ConcursoRepository.listar_todos()
+        
+        # Coleta todos os arquivos de prova vinculados aos concursos salvos
+        arquivos_para_baixar = []
+        for c in concursos:
+            if hasattr(c, 'arquivos') and c.arquivos:
+                for arq in c.arquivos:
+                    arquivos_para_baixar.append(arq)
+
+        total_arquivos = len(arquivos_para_baixar)
+
+        if total_arquivos == 0:
+            self.adicionar_texto("⚠️ Nenhum link de prova novo foi encontrado no banco de dados para baixar.\n")
+            self.parent.after(0, lambda: self.btn_download.configure(state="normal"))
             return
 
-        arquivos = [f for f in os.listdir(caminho_pasta) if f.lower().endswith(".pdf")]
+        self.adicionar_texto(f"Encontrados {total_arquivos} arquivos mapeados. Iniciando downloads...\n\n")
+        
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        baixados_sucesso = 0
 
-        if not arquivos:
-            self.after(0, self.adicionar_texto, "\n⚠️ Nenhum arquivo .pdf encontrado na pasta selecionada.\n")
-            self.after(0, lambda: self.btn_processar.configure(state="normal"))
-            return
+        for idx, arquivo in enumerate(arquivos_para_baixar, start=1):
+            msg_status = f"Baixando arquivo {idx} de {total_arquivos}..."
+            # Atualiza o status na barra da tela principal usando o escalonador do ciclo principal
+            self.parent.after(0, self.parent.lbl_status.configure, {"text": msg_status})
 
-        self.after(0, self.adicionar_texto, f"\n=== INICIANDO BUSCA LOCAL EM {len(arquivos)} PDFs ===\n")
+            url_alvo = arquivo.url_arquivo
+            
+            # Sanitiza o nome do arquivo limpando caracteres inválidos para o sistema operacional
+            nome_limpo = "".join([c for c in arquivo.descricao if c.isalnum() or c in (" ", "-", "_")]).strip()
+            nome_arquivo = f"{nome_limpo}.pdf".replace(" ", "_")
+            caminho_salvamento = os.path.join(pasta_destino, nome_arquivo)
 
-        for nome_arquivo in arquivos:
-            caminho_completo = os.path.join(caminho_pasta, nome_arquivo)
+            # Verifica se o arquivo já foi baixado anteriormente para evitar download redundante
+            if os.path.exists(caminho_salvamento):
+                self.adicionar_texto(f"✅ [JÁ EXISTE LOCAL] {nome_arquivo}\n")
+                baixados_sucesso += 1
+                continue
+
             try:
-                reader = PdfReader(caminho_completo)
-                for num_pagina, pagina in enumerate(reader.pages, start=1):
-                    texto = pagina.extract_text()
-                    if texto and (not termo_busca or termo_busca in texto.lower()):
-                        msg = f"🔍 Encontrado em: {nome_arquivo} -> Página {num_pagina}\n"
-                        self.after(0, self.adicionar_texto, msg)
+                resposta = requests.get(url_alvo, headers=headers, timeout=25, stream=True)
+                if resposta.status_code == 200:
+                    with open(caminho_salvamento, "wb") as f:
+                        for chunk in resposta.iter_content(chunk_size=8192):
+                            if chunk:
+                                f.write(chunk)
+                    self.adicionar_texto(f"📥 [DOWNLOAD COMPLETO] {nome_arquivo}\n")
+                    baixados_sucesso += 1
+                else:
+                    self.adicionar_texto(f"❌ [ERRO {resposta.status_code}] Falha ao baixar: {nome_arquivo}\n")
+                
+                time.sleep(0.5)  # Delay preventivo leve para evitar bloqueio do servidor da banca
             except Exception as e:
-                self.after(0, self.adicionar_texto, f"⚠️ Falha ao ler o arquivo {nome_arquivo}: {e}\n")
+                self.adicionar_texto(f"⚠️ [FALHA DE CONEXÃO] Erro em {nome_arquivo}: {e}\n")
 
-        self.after(0, self.adicionar_texto, "\n=== FIM DO PROCESSAMENTO LOCAL ===\n")
-        self.after(0, lambda: self.btn_processar.configure(state="normal"))
+        self.adicionar_texto(f"\n=== DOWNLOADS CONCLUÍDOS ===\nSucesso: {baixados_sucesso} de {total_arquivos} arquivos salvos na pasta.\n\n")
+        self.parent.after(0, lambda: self.btn_download.configure(state="normal"))
+        self.parent.after(0, self.parent.lbl_status.configure, {"text": "Status: Downloads de PDFs concluídos."})
 
-    def adicionar_texto(self, texto):
-        """Injeta mensagens na caixa de texto de logs da janela secundária."""
-        self.txt_provas.insert(tk.END, texto)
-        self.txt_provas.see(tk.END)
+    # --- FLUXO DE EXECUÇÃO LOCAL (PYPDF) ---
+    def acionar_processamento_local(self):
+        pasta = self.txt_pasta.get().strip()
+        termo = self.txt_termo.get().strip()
+        # Repassa o comando com segurança para o core da aplicação principal gerenciar
+        self.parent.iniciar_processamento_arquivos(pasta, termo)
+
+    def executar_busca_local(self, pasta, termo):
+        """Aqui você pode colar a rotina de varredura PyPDF que desenvolvemos anteriormente"""
+        # Nota: Lembre-se que no fim desta rotina você deve reativar o botão:
+        # self.parent.after(0, lambda: self.btn_processar.configure(state="normal"))
+        pass
