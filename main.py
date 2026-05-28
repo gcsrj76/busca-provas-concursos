@@ -1,6 +1,7 @@
 import threading
 import time
 import tkinter as tk
+import re  # Importado para fazer a remoção de prefixo inteligente
 from bs4 import BeautifulSoup
 import customtkinter as ctk
 from database import inicializar_banco
@@ -160,6 +161,11 @@ class ScraperApp(ctk.CTk):
                     href = link.get("href")
                     titulo = link.get_text(strip=True)
                     if href:
+                        # --- ABORDAGEM RESTRITIVA SEGURA CRITÉRIO CONCURSOS ---
+                        titulo_lower = titulo.lower()
+                        if "concurso público" not in titulo_lower:
+                            continue
+                        
                         url_completa = base_url + href if href.startswith("/") else href
                         foi_salvo = ConcursoRepository.salvar_link(url=url_completa, titulo=titulo)
                         msg = f"[NOVO] {titulo}\n🔗 {url_completa}\n\n" if foi_salvo else f"[JÁ EXISTE] {titulo}\n\n"
@@ -205,7 +211,6 @@ class ScraperApp(ctk.CTk):
             daemon=True,
         ).start()
 
-    # CORRIGIDO: Retornado para dentro do bloco da classe (ScraperApp) e consertado o caractere inicial 'def'
     def executar_verificacao_provas(self):
         concursos = ConcursoRepository.listar_todos()
         total_concursos = len(concursos)
@@ -244,8 +249,20 @@ class ScraperApp(ctk.CTk):
                 if not tabela:
                     continue
 
-                # Normaliza o título do concurso removendo quebras de linha e lixos de espaços
+                # Normaliza o título do concurso removendo lixos de espaços e quebras
                 titulo_concurso = " ".join(concurso.titulo.split())
+
+                # --- CORREÇÃO DO PREFIXO COM REGEX (CASE INSENSITIVE) ---
+                # Remove "Concurso Público para o/a/os/as" ou apenas "Concurso Público" independente de maiúsculas/minúsculas
+                #padrao_prefixo = r"^concurso p[úu]blico para o[sa]?\s+|^concurso p[úu]blico para\s+|^concurso p[úu]blico\s+"
+                #titulo_concurso = re.sub(padrao_prefixo, "", titulo_concurso, flags=re.IGNORECASE).strip()
+
+                padrao_prefixo = r"^concurso p[úu]blico\s+(para\s+(o|a|os|as)?\s+|para\s+)?"
+                titulo_concurso = re.sub(padrao_prefixo, "", titulo_concurso, flags=re.IGNORECASE).strip()                
+
+                # Garante que a primeira letra remanescente fique em maiúscula para manter a elegância
+                if titulo_concurso:
+                    titulo_concurso = titulo_concurso[0].upper() + titulo_concurso[1:]
 
                 linhas = tabela.find_all("tr")
                 for linha in list(linhas):
@@ -266,7 +283,6 @@ class ScraperApp(ctk.CTk):
                                 
                                 # 1. Captura cabeçalhos de Nível ou Nome de Cargo em tags de texto isoladas
                                 if elemento.name == "p":
-                                    # Se este parágrafo contiver links internos, pulamos para não duplicar ou misturar o texto dos botões
                                     if elemento.find("a"):
                                         continue
                                         
