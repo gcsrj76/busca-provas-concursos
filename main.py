@@ -173,12 +173,10 @@ class ScraperApp(ctk.CTk):
         self.after(0, self.atualizar_interface_safe, f"Fim. {novos_links} novos concursos salvos.", 1.0)
         self.after(0, self.liberar_botoes)
 
-    # --- LÓGICA DA ETAPA 2 (ABRIR SEGUNDA JANELA) ---
     # --- LÓGICA DA ETAPA 2 (VERIFICAÇÃO DE PROVAS) ---
     def disparar_verificacao(self):
         self.travar_botoes()
 
-        # 1. Cria ou recria a janela secundária
         if self.janela_provas is None or not self.janela_provas.winfo_exists():
             self.janela_provas = JanelaResultadosProvas(
                 self, "=== INICIANDO VARREDURA DE PROVAS WEB (FGV) ===\n\n"
@@ -189,22 +187,18 @@ class ScraperApp(ctk.CTk):
             self.janela_provas.lift()
             self.janela_provas.focus_force()
 
-        # 2. DISPARO AUTOMÁTICO: Inicia a varredura web assim que a tela abre
         threading.Thread(
             target=self.executar_verificacao_provas,
             daemon=True
         ).start()
 
     def iniciar_processamento_arquivos(self, pasta, termo):
-        """Método chamado pelo botão 'Processar' da segunda janela para varredura local."""
         if not pasta:
             self.janela_provas.adicionar_texto("⚠️ Por favor, selecione uma pasta antes de processar.\n")
             return
 
-        # Trava o botão da subjanela para evitar cliques duplicados
         self.janela_provas.btn_processar.configure(state="disabled")
 
-        # Dispara a busca pesada nos PDFs locais em uma Thread separada
         threading.Thread(
             target=self.janela_provas.executar_busca_local,
             args=(pasta, termo),
@@ -222,15 +216,16 @@ class ScraperApp(ctk.CTk):
                 "Banco de dados vazio! Execute a Coleta primeiro.",
                 0,
                 "Nenhum concurso no banco para verificar.\n",
-                True # Direciona para a janela secundária
+                True
             )
             self.after(0, self.liberar_botoes)
             return
 
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         }
         total_provas_descobertas = 0
+        total_provas_ja_existentes = 0  # Contador auxiliar informativo
 
         for i, concurso in enumerate(concursos):
             porcentagem = (i + 1) / total_concursos
@@ -256,42 +251,47 @@ class ScraperApp(ctk.CTk):
                             t.strip() for t in celula.get_text("\n").split("\n") if t.strip()
                         ]
 
-                        if lines_texto := linhas_texto:
-                            if lines_texto[0] == "Prova Objetiva":
-                                texto_contexto_atual = ""
+                        if linhas_texto and linhas_texto[0] == "Prova Objetiva":
+                            texto_contexto_atual = ""
 
-                                elementos_internos = celula.find_all(["p", "a"])
-                                for elemento in elementos_internos:
-                                    if elemento.name == "p":
-                                        txt_p = elemento.get_text(strip=True)
-                                        if txt_p and txt_p != "Prova Objetiva":
-                                            texto_contexto_atual = txt_p
+                            elementos_internos = celula.find_all(["p", "a"])
+                            for elemento in elementos_internos:
+                                if elemento.name == "p":
+                                    txt_p = elemento.get_text(strip=True)
+                                    if txt_p and txt_p != "Prova Objetiva":
+                                        texto_contexto_atual = txt_p
+                                
+                                elif elemento.name == "a":
+                                    href_arq = elemento.get("href")
+                                    txt_a = elemento.get_text(strip=True)
                                     
-                                    elif elemento.name == "a":
-                                        href_arq = elemento.get("href")
-                                        txt_a = elemento.get_text(strip=True)
+                                    if href_arq:
+                                        url_arq_completa = (
+                                            "https://conhecimento.fgv.br" + href_arq 
+                                            if href_arq.startswith("/") else href_arq
+                                        )
                                         
-                                        if href_arq:
-                                            url_arq_completa = (
-                                                "https://conhecimento.fgv.br" + href_arq 
-                                                if href_arq.startswith("/") else href_arq
-                                            )
-                                            
-                                            descricao_completa = (
-                                                f"{texto_contexto_atual} - {txt_a}" 
-                                                if texto_contexto_atual else txt_a
-                                            )
+                                        descricao_completa = (
+                                            f"{texto_contexto_atual} - {txt_a}" 
+                                            if texto_contexto_atual else txt_a
+                                        )
 
-                                            foi_salvo = ConcursoRepository.salvar_arquivo_prova(
-                                                concurso_id=concurso.id,
-                                                descricao=descricao_completa,
-                                                url_arquivo=url_arq_completa,
-                                            )
+                                        foi_salvo = ConcursoRepository.salvar_arquivo_prova(
+                                            concurso_id=concurso.id,
+                                            descricao=descricao_completa,
+                                            url_arquivo=url_arq_completa,
+                                        )
 
-                                            if foi_salvo:
-                                                total_provas_descobertas += 1
-                                                print_msg = f"✨ [PROVA NOVA] Concurso: {concurso.titulo}\n📝 {descricao_completa}\n🔗 {url_arq_completa}\n\n"
-                                                self.after(0, self.atualizar_interface_safe, msg_status, porcentagem, print_msg, True)
+                                        # CORREÇÃO CRÍTICA: Agora exibe independentemente de ser novo ou antigo
+                                        if foi_salvo:
+                                            total_provas_descobertas += 1
+                                            print_msg = f"✨ [PROVA NOVA] Concurso: {concurso.titulo}\n📝 {descricao_completa}\n🔗 {url_arq_completa}\n\n"
+                                        else:
+                                            total_provas_ja_existentes += 1
+                                            print_msg = f"📚 [HISTÓRICO BASE] Concurso: {concurso.titulo}\n📝 {descricao_completa}\n🔗 {url_arq_completa}\n\n"
+                                        
+                                        # Envia para renderização na janela secundária de qualquer forma
+                                        self.after(0, self.atualizar_interface_safe, msg_status, porcentagem, print_msg, True)
                 time.sleep(1.2)
 
             except Exception as e:
@@ -299,7 +299,12 @@ class ScraperApp(ctk.CTk):
                 continue
 
         msg_fim = f"Varredura de Provas Concluída! {total_provas_descobertas} novas inserções."
-        fim_texto_bloco = f"=== VARREDURA WEB FINALIZADA ===\nTotal de novos links salvos: {total_provas_descobertas}\n\nPronto para processamento local.\n"
+        fim_texto_bloco = (
+            f"=== VARREDURA WEB FINALIZADA ===\n"
+            f"Links inéditos salvos nesta rodada: {total_provas_descobertas}\n"
+            f"Links reaproveitados da base: {total_provas_ja_existentes}\n\n"
+            f"Pronto para processamento local.\n"
+        )
         self.after(0, self.atualizar_interface_safe, msg_fim, 1.0, fim_texto_bloco, True)
         self.after(0, self.liberar_botoes)
 
