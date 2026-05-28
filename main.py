@@ -198,18 +198,19 @@ class ScraperApp(ctk.CTk):
             daemon=True
         ).start()
 
-    def iniciar_processamento_arquivos(self, pasta, termo):
-        if not pasta:
-            self.janela_provas.adicionar_texto("⚠️ Por favor, selecione uma pasta antes de processar.\n")
-            return
-
-        self.janela_provas.btn_processar.configure(state="disabled")
-
-        threading.Thread(
-            target=self.janela_provas.executar_busca_local,
-            args=(pasta, termo),
-            daemon=True,
-        ).start()
+#
+#    def iniciar_processamento_arquivos(self, pasta, termo):
+#        if not pasta:
+#            self.janela_provas.adicionar_texto("⚠️ Por favor, selecione uma pasta antes de processar.\n")
+#            return
+#
+#        self.janela_provas.btn_processar.configure(state="disabled")
+#
+#        threading.Thread(
+#            target=self.janela_provas.executar_busca_local,
+#            args=(pasta, termo),
+#            daemon=True,
+#        ).start()
 
     def executar_verificacao_provas(self):
         concursos = ConcursoRepository.listar_todos()
