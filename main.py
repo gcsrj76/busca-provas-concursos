@@ -205,6 +205,7 @@ class ScraperApp(ctk.CTk):
             daemon=True,
         ).start()
 
+    # CORRIGIDO: Retornado para dentro do bloco da classe (ScraperApp) e consertado o caractere inicial 'def'
     def executar_verificacao_provas(self):
         concursos = ConcursoRepository.listar_todos()
         total_concursos = len(concursos)
@@ -225,7 +226,7 @@ class ScraperApp(ctk.CTk):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         }
         total_provas_descobertas = 0
-        total_provas_ja_existentes = 0  # Contador auxiliar informativo
+        total_provas_ja_existentes = 0
 
         for i, concurso in enumerate(concursos):
             porcentagem = (i + 1) / total_concursos
@@ -237,11 +238,14 @@ class ScraperApp(ctk.CTk):
                 if resposta.status_code != 200:
                     continue
 
-                soup = BeautifulSoup(resposta.text, "html.parser")
+                soup = BeautifulSoup(resposta.text, "lxml")
                 tabela = soup.select_one("table.table")                
 
                 if not tabela:
                     continue
+
+                # Normaliza o título do concurso removendo quebras de linha e lixos de espaços
+                titulo_concurso = " ".join(concurso.titulo.split())
 
                 linhas = tabela.find_all("tr")
                 for linha in list(linhas):
@@ -252,18 +256,35 @@ class ScraperApp(ctk.CTk):
                         ]
 
                         if linhas_texto and linhas_texto[0] == "Prova Objetiva":
-                            texto_contexto_atual = ""
+                            
+                            # MEMÓRIA EM CASCATA DA ESTRUTURA
+                            nivel_atual = ""
+                            cargo_atual = ""
 
-                            elementos_internos = celula.find_all(["p", "a"])
-                            for elemento in elementos_internos:
-                                if elemento.name == "p":
-                                    txt_p = elemento.get_text(strip=True)
-                                    if txt_p and txt_p != "Prova Objetiva":
-                                        texto_contexto_atual = txt_p
+                            # Varremos as tags filhas de bloco de forma linear para manter a ordem da página
+                            for elemento in celula.find_all(recursive=True):
                                 
+                                # 1. Captura cabeçalhos de Nível ou Nome de Cargo em tags de texto isoladas
+                                if elemento.name == "p":
+                                    # Se este parágrafo contiver links internos, pulamos para não duplicar ou misturar o texto dos botões
+                                    if elemento.find("a"):
+                                        continue
+                                        
+                                    txt_p = " ".join(elemento.get_text(strip=True).split())
+                                    
+                                    if not txt_p or txt_p == "Prova Objetiva":
+                                        continue
+                                        
+                                    if "Nível" in txt_p or "Escolaridade" in txt_p:
+                                        nivel_atual = txt_p
+                                        cargo_atual = ""  # Reseta o cargo pois mudou o nível de escolaridade
+                                    else:
+                                        cargo_atual = txt_p  # Define o novo cargo corrente
+
+                                # 2. Processa os links das Provas propriamente ditas
                                 elif elemento.name == "a":
                                     href_arq = elemento.get("href")
-                                    txt_a = elemento.get_text(strip=True)
+                                    txt_a = " ".join(elemento.get_text(strip=True).split())
                                     
                                     if href_arq:
                                         url_arq_completa = (
@@ -271,10 +292,21 @@ class ScraperApp(ctk.CTk):
                                             if href_arq.startswith("/") else href_arq
                                         )
                                         
-                                        descricao_completa = (
-                                            f"{texto_contexto_atual} - {txt_a}" 
-                                            if texto_contexto_atual else txt_a
-                                        )
+                                        # Constrói sequencialmente a árvore de nomes
+                                        partes_nome = [titulo_concurso]
+                                        
+                                        if nivel_atual:
+                                            partes_nome.append(nivel_atual)
+                                            
+                                        if cargo_atual:
+                                            partes_nome.append(cargo_atual)
+                                            
+                                        # Adiciona o texto do link (ex: "Tipo 1") se ele não for repetitivo
+                                        if txt_a and txt_a not in cargo_atual and txt_a not in nivel_atual:
+                                            partes_nome.append(txt_a)
+                                            
+                                        # Junta todas as partes usando o separador padrão
+                                        descricao_completa = " - ".join(partes_nome)
 
                                         foi_salvo = ConcursoRepository.salvar_arquivo_prova(
                                             concurso_id=concurso.id,
@@ -282,16 +314,15 @@ class ScraperApp(ctk.CTk):
                                             url_arquivo=url_arq_completa,
                                         )
 
-                                        # CORREÇÃO CRÍTICA: Agora exibe independentemente de ser novo ou antigo
                                         if foi_salvo:
                                             total_provas_descobertas += 1
-                                            print_msg = f"✨ [PROVA NOVA] Concurso: {concurso.titulo}\n📝 {descricao_completa}\n🔗 {url_arq_completa}\n\n"
+                                            print_msg = f"✨ [PROVA NOVA]\n📝 {descricao_completa}\n🔗 {url_arq_completa}\n\n"
                                         else:
                                             total_provas_ja_existentes += 1
-                                            print_msg = f"📚 [HISTÓRICO BASE] Concurso: {concurso.titulo}\n📝 {descricao_completa}\n🔗 {url_arq_completa}\n\n"
+                                            print_msg = f"📚 [HISTÓRICO BASE]\n📝 {descricao_completa}\n🔗 {url_arq_completa}\n\n"
                                         
-                                        # Envia para renderização na janela secundária de qualquer forma
                                         self.after(0, self.atualizar_interface_safe, msg_status, porcentagem, print_msg, True)
+                                        
                 time.sleep(1.2)
 
             except Exception as e:
