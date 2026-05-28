@@ -1,21 +1,18 @@
-from database import ArquivoProvaModel, ConcursoModel, SessionLocal
 from sqlalchemy.orm import joinedload
+from database.connection import SessionLocal
+from database.models import ConcursoModel, ArquivoProvaModel
 
 class ConcursoRepository:
     
     @staticmethod
     def limpar_banco():
-        """Apaga todos os registros de concursos. 
-        Os arquivos de provas vinculados serão apagados por cascata (Cascade Delete).
-        """
         db = SessionLocal()
         try:
-            # Remove todos os registros da tabela de concursos
             db.query(ConcursoModel).delete()
             db.commit()
         except Exception as e:
             db.rollback()
-            print(f"Erro ao limpar o banco de dados: {e}")
+            print(f"Erro ao limpar banco: {e}")
         finally:
             db.close()
 
@@ -32,7 +29,6 @@ class ConcursoRepository:
             return False
         except Exception as e:
             db.rollback()
-            print(f"Erro ao salvar concurso: {e}")
             return False
         finally:
             db.close()
@@ -41,8 +37,23 @@ class ConcursoRepository:
     def listar_todos():
         db = SessionLocal()
         try:
-            # Adicionado o .order_by(ConcursoModel.id.asc()) para garantir a ordem de inserção
             return db.query(ConcursoModel).options(joinedload(ConcursoModel.arquivos)).order_by(ConcursoModel.id.asc()).all()
+        finally:
+            db.close()
+
+    @staticmethod
+    def contar_concursos() -> int:
+        db = SessionLocal()
+        try:
+            return db.query(ConcursoModel).count()
+        finally:
+            db.close()
+
+    @staticmethod
+    def contar_arquivos_provas() -> int:
+        db = SessionLocal()
+        try:
+            return db.query(ArquivoProvaModel).count()
         finally:
             db.close()
 
@@ -59,7 +70,6 @@ class ConcursoRepository:
             return False
         except Exception as e:
             db.rollback()
-            print(f"Erro ao salvar arquivo de prova: {e}")
             return False
         finally:
             db.close()
