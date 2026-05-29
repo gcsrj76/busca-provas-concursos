@@ -31,16 +31,23 @@ class DownloadService:
 
             callback_interface(f"Baixando {i+1}/{total_arquivos}...", progresso)
 
-            if os.path.exists(caminho_completo):
-                callback_interface(None, None, f"skip: {nome_arquivo} (já existe local)\n")
+            # --- NOVA LÓGICA DE VERIFICAÇÃO ---
+            # Verifica tanto no banco de dados quanto no arquivo físico
+            if arq.baixado and os.path.exists(caminho_completo):
+                callback_interface(None, None, f"skip: {nome_arquivo} (já consta como baixado no banco e local)\n")
                 baixados += 1
                 continue
-
+            
+            # Se sumiu da pasta local mas está no banco, ou vice-versa, tentará baixar de novo por segurança
             try:
                 resposta = requests.get(arq.url_arquivo, headers=headers, timeout=15)
                 if resposta.status_code == 200:
                     with open(caminho_completo, "wb") as f:
                         f.write(resposta.content)
+                    
+                    # --- ATUALIZAÇÃO NO BANCO ---
+                    ConcursoRepository.atualizar_status_download(arq.id, True)
+                    
                     callback_interface(None, None, f"📥 [BAIXADO] {nome_arquivo}\n")
                     baixados += 1
                 else:

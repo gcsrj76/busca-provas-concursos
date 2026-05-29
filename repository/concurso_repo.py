@@ -73,3 +73,18 @@ class ConcursoRepository:
             return False
         finally:
             db.close()
+
+    @staticmethod
+    def atualizar_status_download(arquivo_id: int, status: bool):
+        """Atualiza o campo 'baixado' de um arquivo específico no banco de dados."""
+        db = SessionLocal()
+        try:
+            arquivo = db.query(ArquivoProvaModel).filter(ArquivoProvaModel.id == arquivo_id).first()
+            if arquivo:
+                arquivo.baixado = status
+                db.commit()
+        except Exception as e:
+            db.rollback()
+            raise e
+        finally:
+            db.close()            

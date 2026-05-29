@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, JSON
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, JSON, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database.connection import Base
@@ -26,6 +26,7 @@ class ArquivoProvaModel(Base):
     descricao = Column(String, nullable=False)
     url_arquivo = Column(String, unique=True, nullable=False, index=True)
     coletado_em = Column(DateTime(timezone=True), server_default=func.now())
+    baixado = Column(Boolean, default=False, nullable=False)
 
     concurso = relationship("ConcursoModel", back_populates="arquivos")
 
