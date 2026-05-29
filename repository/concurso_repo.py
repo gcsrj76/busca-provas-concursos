@@ -87,4 +87,13 @@ class ConcursoRepository:
             db.rollback()
             raise e
         finally:
-            db.close()            
+            db.close()  
+
+    @staticmethod
+    def obter_arquivos_pendentes():
+        """Retorna apenas os arquivos cujo status 'baixado' seja falso."""
+        session = SessionLocal()
+        try:
+            return session.query(ArquivoProvaModel).filter(ArquivoProvaModel.baixado == False).all()
+        finally:
+            session.close()                     

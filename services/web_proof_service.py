@@ -86,7 +86,11 @@ class WebProofService:
                                 elif elemento.name == "a":
                                     href_arq = elemento.get("href")
                                     txt_a = " ".join(elemento.get_text(strip=True).split())
-                                    if href_arq:
+
+                                    #url_limpa = href_arq.url.lower().strip()
+
+                                    if href_arq and (href_arq.endswith('.pdf') or '.pdf?' in href_arq):
+                                    #if href_arq:
                                         # Marcar que a estrutura continha links de arquivos válidos
                                         encontrou_prova_neste_concurso = True
                                         
