@@ -4,6 +4,7 @@ from views.view_coleta import ViewColeta
 from views.view_busca import ViewBusca
 from views.view_download import ViewDownload
 from views.view_processar import ViewProcessar
+from views.view_extracao import ViewExtracao  # <--- 1. AJUSTE: Nova Importação
 
 class ScraperApp(ctk.CTk):
     """Atua como a Janela Principal unificada controlando as sub-views."""
@@ -26,6 +27,8 @@ class ScraperApp(ctk.CTk):
         self.criar_botao_menu("🔍 Buscar Provas", lambda: self.mudar_tela("busca"))
         self.criar_botao_menu("📥 Baixar Provas", lambda: self.mudar_tela("download"))
         self.criar_botao_menu("⚙️ Processar PDFs", lambda: self.mudar_tela("processar"))
+        # <--- 2. AJUSTE: Novo botão adicionado de forma independente no menu lateral
+        self.criar_botao_menu("🤖 Extrair Questões", lambda: self.mudar_tela("extracao"))
 
         # --- BARRA INFERIOR DE STATUS ---
         self.frame_status = ctk.CTkFrame(self, height=35, corner_radius=0)
@@ -59,6 +62,8 @@ class ScraperApp(ctk.CTk):
         self.telas["busca"] = ViewBusca(self.container_telas)
         self.telas["download"] = ViewDownload(self.container_telas)
         self.telas["processar"] = ViewProcessar(self.container_telas)
+        # <--- 3. AJUSTE: Registra a nova View acoplada no mesmo container central
+        self.telas["extracao"] = ViewExtracao(self.container_telas)
 
     def mudar_tela(self, chave_tela):
         # Oculta todas as views de uma vez só

@@ -18,18 +18,38 @@ class WebProofService:
         total_provas_descobertas = 0
         total_provas_ja_existentes = 0
 
+        # Lista para armazenar os concursos que não tiveram nenhuma prova localizada
+        concursos_sem_prova = []
+
+        # Padrão Regex Expandido e Flexível
+        padrao_prova_objetiva = re.compile(r"Provas?(\s+(Escrita\s+)?Objetiva)?", re.IGNORECASE)
+
+        #Situações possíveis:
+        #Provas
+        #Prova
+        #Provas - 15/10/2012
+        #Prova Objetiva
+        #Prova Escrita Objetiva
+        #Provas Escritas Objetivas - 2018           
+
         for i, concurso in enumerate(concursos):
             porcentagem = (i + 1) / total_concursos
             callback_interface(f"Verificando {i+1}/{total_concursos} ({concurso.titulo[:25]}...)", porcentagem)
 
+            # Flag interna para verificar se o concurso atual possui alguma prova na página
+            encontrou_prova_neste_concurso = False
+
             try:
                 resposta = requests.get(concurso.url, headers=headers, timeout=10)
                 if resposta.status_code != 200:
+                    # Se der erro de conexão/status, consideramos que nenhuma prova foi extraída dele
+                    concursos_sem_prova.append((concurso.titulo, concurso.url))
                     continue
 
                 soup = BeautifulSoup(resposta.text, "lxml")
                 tabela = soup.select_one("table.table")                
                 if not tabela:
+                    concursos_sem_prova.append((concurso.titulo, concurso.url))
                     continue
 
                 titulo_concurso = " ".join(concurso.titulo.split())
@@ -45,7 +65,7 @@ class WebProofService:
                     for celula in celulas:
                         linhas_texto = [t.strip() for t in celula.get_text("\n").split("\n") if t.strip()]
 
-                        if linhas_texto and linhas_texto[0] == "Prova Objetiva":
+                        if linhas_texto and padrao_prova_objetiva.search(linhas_texto[0]):
                             nivel_atual = ""
                             cargo_atual = ""
 
@@ -54,7 +74,8 @@ class WebProofService:
                                     if elemento.find("a"): 
                                         continue
                                     txt_p = " ".join(elemento.get_text(strip=True).split())
-                                    if not txt_p or txt_p == "Prova Objetiva": 
+                                    
+                                    if not txt_p or padrao_prova_objetiva.search(txt_p): 
                                         continue
                                     if "Nível" in txt_p or "Escolaridade" in txt_p:
                                         nivel_atual = txt_p
@@ -66,6 +87,9 @@ class WebProofService:
                                     href_arq = elemento.get("href")
                                     txt_a = " ".join(elemento.get_text(strip=True).split())
                                     if href_arq:
+                                        # Marcar que a estrutura continha links de arquivos válidos
+                                        encontrou_prova_neste_concurso = True
+                                        
                                         url_arq_completa = "https://conhecimento.fgv.br" + href_arq if href_arq.startswith("/") else href_arq
                                         partes_nome = [titulo_concurso]
                                         if nivel_atual: 
@@ -86,10 +110,35 @@ class WebProofService:
                                             print_msg = f"📚 [HISTÓRICO BASE] {descricao_completa}\n\n"
                                         
                                         callback_interface(None, None, print_msg)
+                
+                # Se passou pela tabela inteira e a flag continuou False, adiciona ao relatório
+                if not encontrou_prova_neste_concurso:
+                    concursos_sem_prova.append((concurso.titulo, concurso.url))
+
                 time.sleep(1.2)
             except Exception as e:
+                concursos_sem_prova.append((concurso.titulo, concurso.url))
                 callback_interface(None, None, f"⚠️ Erro ao acessar {concurso.url}: {e}\n")
                 continue
 
-        fim_txt = f"\n=== VARREDURA WEB CONCLUÍDA ===\nInéditas: {total_provas_descobertas} | Já existentes: {total_provas_ja_existentes}\n"
+        # == GERAÇÃO DO RELATÓRIO TXT ==
+        txt_relatorio = ""
+        if concursos_sem_prova:
+            try:
+                with open("concursos_sem_provas.txt", "w", encoding="utf-8") as f:
+                    f.write("=== CONCURSOS SEM PROVAS ENCONTRADAS ===\n")
+                    f.write(f"Gerado em: {time.strftime('%d/%m/%Y %H:%M:%S')}\n")
+                    f.write(f"Total de concursos sem prova: {len(concursos_sem_prova)}\n")
+                    f.write("-" * 50 + "\n\n")
+                    for titulo, url in concursos_sem_prova:
+                        f.write(f"🏆 Concurso: {titulo}\n")
+                        f.write(f"🔗 Link: {url}\n")
+                        f.write("-" * 50 + "\n")
+                txt_relatorio = f"📋 Relatório gerado com sucesso: 'concursos_sem_provas.txt' ({len(concursos_sem_prova)} listados)\n"
+            except Exception as error_file:
+                txt_relatorio = f"⚠️ Falha ao salvar arquivo txt de relatório: {error_file}\n"
+        else:
+            txt_relatorio = "🎉 Excelente! Todos os concursos analisados possuíam provas cadastradas.\n"
+
+        fim_txt = f"\n=== VARREDURA WEB CONCLUÍDA ===\nInéditas: {total_provas_descobertas} | Já existentes: {total_provas_ja_existentes}\n{txt_relatorio}"
         callback_interface("Varredura de Provas Concluída!", 1.0, fim_txt)
