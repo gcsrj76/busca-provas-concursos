@@ -57,7 +57,12 @@ class ViewProcessar(ctk.CTkFrame):
         self.btn_filtrar.configure(state="disabled")
         self.txt_log.delete("1.0", tk.END)
 
-        threading.Thread(target=PdfSearchService.buscar_e_separar, args=(origem, destino, termo, self.callback_thread), daemon=True).start()
+        #threading.Thread(target=PdfSearchService.buscar_e_separar, args=(origem, destino, termo, self.callback_thread), daemon=True).start()
+        threading.Thread(
+            target=PdfSearchService.filtrar_por_padrao_fgv, 
+            args=(origem, destino, self.callback_thread), 
+            daemon=True
+        ).start()        
 
     def callback_thread(self, status_msg, progresso, log_msg=None):
         if status_msg is not None:

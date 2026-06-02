@@ -1,12 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['run.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    hiddenimports=[],
+    # Adicionamos a pasta 'views' para que todas as interfaces (.py) sejam copiadas para dentro do executável
+    datas=[('views', 'views')],
+    # Forçamos o PyInstaller a carregar os módulos ocultos que o script principal não importa diretamente
+    hiddenimports=[
+        'views.main_activity',
+        'views.view_processar'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -29,7 +33,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=True,  # Mantém True para você conseguir ver os logs de erro no terminal do Linux se algo ocorrer
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

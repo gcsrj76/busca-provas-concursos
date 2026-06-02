@@ -1,0 +1,267 @@
+{
+  "entidade": "Questao",
+  "materia": "MATÉRIA IMPORTADA",
+  "ementa": "EMENTA IMPORTADA",
+  "dados": [
+    {
+      "enunciado": "O texto mostra um segmento retirado de um trabalho de pós-graduação. Assinale a afirmativa correta sobre a mensagem do texto.",
+      "texto_referencia": "Os alunos de hoje e a escola de sempre\\n\\n“Há, porém, uma notável diferença entre a escola do passado e a atual. A primeira, sob exclusiva ação do professor, consistia na única fonte de conhecimento de seus alunos, sem a qual não se poderia “saber” nem “conhecer”. Mas hoje podemos facilmente perceber que, embora culturalmente a escola não tenha mudado, as pessoas das quais se compõe mudaram, e muito. O professor deixou de ser a única fonte de saber para seus alunos, tornando-se nem mesmo a principal. Os alunos já chegam à escola com uma visão de mundo pré-estabelecida, com opiniões e conceitos formados, com uma cultura estritamente pessoal e diversificada. E isso não poderia ser diferente. “O mundo desses alunos é polifônico e policrômico. É cheio de cores, imagens e sons. Muito distante do espaço quase que exclusivamente monotônico, monofônico, monocromático que a escola está a lhes oferecer”. (FREIRE, 1998)",
+      "respostas": [
+        {
+          "texto": "Compara a escola do passado com a escola do presente, mostrando as vantagens daquela sobre esta.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "Indica a superioridade dos alunos de hoje em relação aos seus professores em função dos conhecimentos obtidos fora da escola.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "Mostra que o mundo fora dos muros escolares se apresenta muito mais rico e diversificado do que o oferecido pela escola.",
+          "eh_correta": 1
+        },
+        {
+          "texto": "Comprova o eterno valor da escola, apesar das mudanças, já que continua sendo a única fonte do saber e do conhecer.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "Denuncia o fracasso do ensino nos dias atuais em função da falta de atualização do corpo docente.",
+          "eh_correta": 0
+        }
+      ]
+    },
+    {
+      "enunciado": "Assinale a opção que apresenta a observação correta sobre um dos segmentos textuais destacado.",
+      "texto_referencia": "Os alunos de hoje e a escola de sempre\\n\\n“Há, porém, uma notável diferença entre a escola do passado e a atual. A primeira, sob exclusiva ação do professor, consistia na única fonte de conhecimento de seus alunos, sem a qual não se poderia “saber” nem “conhecer”. Mas hoje podemos facilmente perceber que, embora culturalmente a escola não tenha mudado, as pessoas das quais se compõe mudaram, e muito. O professor deixou de ser a única fonte de saber para seus alunos, tornando-se nem mesmo a principal. Os alunos já chegam à escola com uma visão de mundo pré-estabelecida, com opiniões e conceitos formados, com uma cultura estritamente pessoal e diversificada. E isso não poderia ser diferente. “O mundo desses alunos é polifônico e policrômico. É cheio de cores, imagens e sons. Muito distante do espaço quase que exclusivamente monotônico, monofônico, monocromático que a escola está a lhes oferecer”. (FREIRE, 1998)",
+      "respostas": [
+        {
+          "texto": "“Há, porém, uma notável diferença entre a escola do passado e a atual” / indica que nos segmentos anteriores foi feita uma observação que precisava ser retificada.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "“A primeira, sob exclusiva ação do professor, consistia na única fonte de conhecimento de seus alunos...” / o termo inicial desta frase – A primeira – faz supor que haverá uma citação referente à escola atual.",
+          "eh_correta": 1
+        },
+        {
+          "texto": "“Mas hoje podemos facilmente perceber que, embora culturalmente a escola não tenha mudado, as pessoas das quais se compõe mudaram...” / a conjunção “mas” inicial indica a oposição entre o estatismo da escola e o dinamismo dos alunos.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "“O professor deixou de ser a única fonte de saber para seus alunos, tornando-se nem mesmo a principal.” / o texto mostra uma crítica à desatualização dos professores.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "“Os alunos já chegam à escola com uma visão de mundo pré-estabelecida...” / o texto faz referência à doutrinação política feita pela mídia.",
+          "eh_correta": 0
+        }
+      ]
+    },
+    {
+      "enunciado": "Na construção desse pensamento, o enunciador utiliza frequentemente a conjunção E. Assinale a frase em que, em lugar de aditiva, essa conjunção tem valor adversativo.",
+      "texto_referencia": "No prefácio do livro “Reflexões sobre a Língua Portuguesa”, datado de 1863, seu autor, Francisco José Freire, diz o seguinte:\\n\\n“Entendimento e linguagem são dois irmãos gêmeos, e gêmeos unidos em um só corpo por órgãos comuns, e por tal disposição, que a nutrição e a vida de um alimenta sempre e vivifica o outro; assim como as enfermidades de cada um deles passam logo, e se comunicam a ambos.”",
+      "respostas": [
+        {
+          "texto": "“Entendimento e linguagem são dois irmãos gêmeos”.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "“e gêmeos unidos em um só corpo por órgãos comuns”.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "“que a nutrição e a vida de um”.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "“alimenta sempre e vivifica o outro”.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "“as enfermidades de cada um deles passam logo, e se comunicam a ambos”.",
+          "eh_correta": 1
+        }
+      ]
+    },
+    {
+      "enunciado": "Assinale a afirmação correta sobre os componentes do pensamento de Francisco José Freire.",
+      "texto_referencia": "No prefácio do livro “Reflexões sobre a Língua Portuguesa”, datado de 1863, seu autor, Francisco José Freire, diz o seguinte:\\n\\n“Entendimento e linguagem são dois irmãos gêmeos, e gêmeos unidos em um só corpo por órgãos comuns, e por tal disposição, que a nutrição e a vida de um alimenta sempre e vivifica o outro; assim como as enfermidades de cada um deles passam logo, e se comunicam a ambos.”",
+      "respostas": [
+        {
+          "texto": "O segmento “passam logo” mostra a pouca duração das enfermidades nos corpos.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "O segmento “que a nutrição e a vida de um alimenta sempre e vivifica o outro” mostra uma causa de uma afirmação anterior.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "Os termos “entendimento” e “linguagem” são tratados no texto como sinônimos perfeitos.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "A expressão “órgãos comuns” indica que os órgãos apontados têm presença frequente nos corpos.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "Todo o segmento textual explica e desenvolve uma metáfora inicial.",
+          "eh_correta": 1
+        }
+      ]
+    },
+    {
+      "enunciado": "Suponha que no momento da digitação do texto de Francisco José Freire, o corretor ortográfico do computador tenha indicado a presença de um erro, sublinhando o segmento “a nutrição e a vida de um alimenta sempre e vivifica o outro”. Nesse caso, pode-se afirmar que o corretor",
+      "texto_referencia": "No prefácio do livro “Reflexões sobre a Língua Portuguesa”, datado de 1863, seu autor, Francisco José Freire, diz o seguinte:\\n\\n“Entendimento e linguagem são dois irmãos gêmeos, e gêmeos unidos em um só corpo por órgãos comuns, e por tal disposição, que a nutrição e a vida de um alimenta sempre e vivifica o outro; assim como as enfermidades de cada um deles passam logo, e se comunicam a ambos.”",
+      "respostas": [
+        {
+          "texto": "indicou com razão um erro de concordância verbal, pois as formas verbais deveriam ser “alimentam” e “vivificam”.",
+          "eh_correta": 1
+        },
+        {
+          "texto": "mostrou a presença inadequada do advérbio “sempre”.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "apontou a falta de paralelismo sintático na construção das frases.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "não considerou a existência de sinônimos entre “nutrição” e “vida”.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "assinalou a falta de correspondência adequada entre os termos “um” e “outro”.",
+          "eh_correta": 0
+        }
+      ]
+    },
+    {
+      "enunciado": "O pensamento fundamental contido nesse segmento textual é:",
+      "texto_referencia": "Atenção: o texto a seguir refere-se às três próximas questões. No site “Recanto das Letras” apareceu o seguinte texto de Graça Novais: “O ensino se bem -organizado impulsiona, também, o desenvolvimento do estudante, porém esse deve ser visto como alguém que contribui para a sua aprendizagem de forma \"ativa\", implicando uma revolução na forma de conceber o ensino, alterando a postura do professor e da equipe gestora. Professor mediador entre os alunos e o conhecimento e facilitador da aprendizagem, tornando-se essa, um processo ativo que requer a reconstrução tanto de novos conhecimentos como de formas de pensar e tomar decisões”.",
+      "respostas": [
+        {
+          "texto": "“O ensino se bem -organizado impulsiona, também, o desenvolvimento do estudante”.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "“...esse deve ser visto como alguém que contribui para a sua aprendizagem de forma \"ativa\".",
+          "eh_correta": 1
+        },
+        {
+          "texto": "“...implicando uma revolução na forma de conceber o ensino, alterando a postura do professor e da equipe gestora.”.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "“Professor mediador entre os alunos e o conhecimento e facilitador da aprendizagem”.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "“...tornando-se essa, um processo ativo que requer a reconstrução tanto de novos conhecimentos como de formas de pensar e tomar decisões”.",
+          "eh_correta": 0
+        }
+      ]
+    },
+    {
+      "enunciado": "Sobre os componentes estruturais do pequeno texto de Graça Novais, é correto afirmar que",
+      "texto_referencia": "Atenção: o texto a seguir refere-se às três próximas questões. No site “Recanto das Letras” apareceu o seguinte texto de Graça Novais: “O ensino se bem -organizado impulsiona, também, o desenvolvimento do estudante, porém esse deve ser visto como alguém que contribui para a sua aprendizagem de forma \"ativa\", implicando uma revolução na forma de conceber o ensino, alterando a postura do professor e da equipe gestora. Professor mediador entre os alunos e o conhecimento e facilitador da aprendizagem, tornando-se essa, um processo ativo que requer a reconstrução tanto de novos conhecimentos como de formas de pensar e tomar decisões”.",
+      "respostas": [
+        {
+          "texto": "“se bem-organizado” mostra uma condição sem a qual não se verifica a conclusão seguinte.",
+          "eh_correta": 1
+        },
+        {
+          "texto": "o termo “ também” indica que outros elementos serão indicados na continuidade do texto.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "o termo “do estudante” tanto pode ser o agente como o paciente do vocábulo “desenvolvimento”.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "o demonstrativo “esse” se refere a “desenvolvimento”, estabelecendo coesão no texto.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "o segmento “implicando uma revolução” deveria ser corrigido para “implicando numa revolução”.",
+          "eh_correta": 0
+        }
+      ]
+    },
+    {
+      "enunciado": "O texto do “Recanto das Letras” deve ter seu gênero classificado como",
+      "texto_referencia": "Atenção: o texto a seguir refere-se às três próximas questões. No site “Recanto das Letras” apareceu o seguinte texto de Graça Novais: “O ensino se bem -organizado impulsiona, também, o desenvolvimento do estudante, porém esse deve ser visto como alguém que contribui para a sua aprendizagem de forma \"ativa\", implicando uma revolução na forma de conceber o ensino, alterando a postura do professor e da equipe gestora. Professor mediador entre os alunos e o conhecimento e facilitador da aprendizagem, tornando-se essa, um processo ativo que requer a reconstrução tanto de novos conhecimentos como de formas de pensar e tomar decisões”.",
+      "respostas": [
+        {
+          "texto": "descritivo, pois define os vários componentes de uma estrutura moderna de ensino.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "narrativo, pois mostra uma evolução conceitual na forma de conceber o ensino.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "dissertativo-expositivo, pois expõe didaticamente como deve ser visto o ensino nos dias de hoje.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "dissertativo-argumentativo, pois defende uma ideia sobre o ensino, apoiada em argumentos de autoridade.",
+          "eh_correta": 1
+        },
+        {
+          "texto": "dissertativo-histórico, pois enumera as diversas fases por que já passou a tarefa de ensinar.",
+          "eh_correta": 0
+        }
+      ]
+    },
+    {
+      "enunciado": "Um ditado de autor desconhecido diz: “Se você é tolo, fique rodeado de pessoas inteligentes. Se você é inteligente, fique rodeado de pessoas inteligentes que discordam de você”. Pode-se concluir desse ditado que",
+      "texto_referencia": "",
+      "respostas": [
+        {
+          "texto": "a recusa do erro é prova de inteligência.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "a inteligência é indispensável para a vida em sociedade.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "o debate entre opostos enriquece o conhecimento.",
+          "eh_correta": 1
+        },
+        {
+          "texto": "a discordância gera antipatias sociais.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "a tolice é o primeiro passo para a inteligência.",
+          "eh_correta": 0
+        }
+      ]
+    },
+    {
+      "enunciado": "Assinale a frase a seguir que está estruturada de forma coerente.",
+      "texto_referencia": "",
+      "respostas": [
+        {
+          "texto": "“Quando o despertador pifa, ninguém dorme”.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "“Todos nós devemos muito a Thomas Edison. Se não fosse por ele, ainda estaríamos vendo televisão à luz de velas”.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "“A máquina de escrever é um aparelho que melhora sensivelmente a nossa caligrafia”.",
+          "eh_correta": 0
+        },
+        {
+          "texto": "“A informática veio para resolver problemas que não existem”.",
+          "eh_correta": 1
+        },
+        {
+          "texto": "“Fale mais baixo, porque está difícil ouvi-lo”.",
+          "eh_correta": 0
+        }
+      ]
+    }
+  ]
+}
