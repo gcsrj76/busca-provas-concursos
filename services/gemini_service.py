@@ -77,7 +77,7 @@ class GeminiService:
         except Exception:
             # Em caso de falha na API ou JSON inválido, retorna uma estrutura vazia segura
             return {"questoes": []}
-
+        
     @staticmethod
     def executar_extracao(pasta_origem: str, restricoes_busca: str, callback_interface) -> None:
         """
@@ -163,7 +163,14 @@ class GeminiService:
             session.close()
 
     @staticmethod
-    def executar_extracao_manual(caminho_pdf, callback_interface):
+    def executar_extracao_manual(caminho_pdf, materia_inicial, callback_interface):
+        """
+        Varre os PDFs, identifica o bloco de texto entre a materia_inicial e a próxima matéria
+        da lista de possíveis matérias da FGV, concatena tudo e gera um arquivo texto final.
+        """
+        import os
+        import re
+        from pypdf import PdfReader
 
         arquivos = [f for f in os.listdir(caminho_pdf) if f.lower().endswith(".pdf")]
         total = len(arquivos)
@@ -172,104 +179,91 @@ class GeminiService:
             callback_interface("Nenhum PDF encontrado na pasta de origem.", 1.0, "Processamento vazio.\n")
             return
 
-        session = SessionLocal()
+        # Lista de possíveis matérias finais para servir de limite/corte
+        lista_materias_possiveis = [
+            "Língua Portuguesa", 
+            "Legislação", 
+            "Raciocínio Lógico", 
+            "Informática", 
+            "Analista de Tecnologia",
+            "Direito",
+            "Conhecimentos Específicos",
+            "Matemática"
+        ]
 
-        try:
-            for i, nome_arq in enumerate(arquivos):
-                prog = (i + 1) / total
-                callback_interface(f"Analisando arquivo {i+1}/{total}: {nome_arq}...", prog)
-                caminho_origem = os.path.join(caminho_pdf, nome_arq)
+        # Texto acumulador que conterá o resultado de todos os arquivos processados
+        texto_acumulado_final = ""
+        arquivos_processados = 0
+
+        for i, nome_arq in enumerate(arquivos):
+            prog = (i + 1) / total
+            callback_interface(f"Analisando arquivo {i+1}/{total}: {nome_arq}...", prog, f"Analisando {nome_arq}...\n")
+            caminho_origem = os.path.join(caminho_pdf, nome_arq)
+            
+            texto_completo_prova = ""
+            try:
+                with open(caminho_origem, "rb") as f:                    
+                    leitor = PdfReader(f)
+                    for num_pag in range(len(leitor.pages)):
+                        # Mantendo o modo layout para evitar misturar textos horizontais de duas colunas
+                        texto_pag = leitor.pages[num_pag].extract_text(extraction_mode="layout")
+                        if texto_pag:
+                            texto_completo_prova += texto_pag + "\n"
+
+                # 1. Encontra onde começa a matéria desejada (materia_inicial)
+                # Escapa caracteres especiais que possam vir no parâmetro para não quebrar a Regex
+                termo_inicio_esc = re.escape(materia_inicial)
+                inicio_match = re.search(fr"{termo_inicio_esc}", texto_completo_prova)
                 
-                texto_completo_prova = ""
-                try:
-                    with open(caminho_origem, "rb") as f:                    
-                        leitor = PdfReader(f)
-                        for num_pag in range(len(leitor.pages)):
-                            # ESSENCIAL: Usamos extraction_mode="layout" para ler duas colunas de forma correta e sem misturar textos horizontais
-                            texto_pag = leitor.pages[num_pag].extract_text(extraction_mode="layout")
-                            if texto_pag:
-                                texto_completo_prova += texto_pag + "\n"
+                if not inicio_match:
+                    callback_interface(None, prog, f"⚠️ Aviso: Matéria '{materia_inicial}' não encontrada em {nome_arq}.\n")
+                    continue
 
-                    # 1. Filtra para pegar apenas a seção de Língua Portuguesa até o início de outra matéria
-                    inicio_match = re.search(r"Língua\s+Portuguesa", texto_completo_prova, re.IGNORECASE)
-                    if not inicio_match:
-                        callback_interface(f"Aviso: Matéria não encontrada em {nome_arq}.", prog)
-                        continue
+                # Isola o texto a partir do início da matéria solicitada
+                texto_escopo = texto_completo_prova[inicio_match.start():]
+                
+                # 2. Constrói dinamicamente a Regex de parada com as matérias que NÃO são a inicial
+                # Exemplo: Se o usuário pediu "Legislação", a lista de corte terá as outras
+                materias_corte = [m for m in lista_materias_possiveis if m.lower() != materia_inicial.lower()]
+                padrao_fim = r"\n\s*(" + "|".join([re.escape(m) for m in materias_corte]) + r")"
+                
+                fim_match = re.search(padrao_fim, texto_escopo)
+                
+                if fim_match:
+                    # Corta o texto no ponto exato onde a próxima matéria começa
+                    texto_escopo = texto_escopo[:fim_match.start()]
 
-                    texto_portugues = texto_completo_prova[inicio_match.start():]
-                    
-                    # Corta se achar termos de quebra padrão de outras matérias nas provas da FGV
-                    fim_match = re.search(r"\n\s*(Legislação|Direito|Informática|Raciocínio|Conhecimentos\s+Específicos|Matemática)", texto_portugues, re.IGNORECASE)
-                    if fim_match:
-                        texto_portugues = texto_portugues[:fim_match.start()]
+                # 3. Alimenta o acumulador de blocos, adicionando separadores claros de cabeçalho
+                texto_acumulado_final += f"\n\n{'='*80}\n"
+                texto_acumulado_final += f"FONTE: {nome_arq} | MATÉRIA EXTRÁIDA: {materia_inicial}\n"
+                texto_acumulado_final += f"{'='*80}\n\n"
+                texto_acumulado_final += texto_escopo.strip()
+                
+                arquivos_processados += 1
+                callback_interface(None, prog, f"✅ Bloco de '{materia_inicial}' extraído com sucesso de {nome_arq}.\n")
 
-                    # 2. Divide o bloco de português nos marcadores numéricos de questões (ex: '\n 1 \n' ou '\n1\n')
-                    padrao_questao = r"\n\s*([1-9][0-9]?)\s+(?=[A-ZÀ-Ú])"
-                    partes = re.split(padrao_questao, texto_portugues)
-                    
-                    # Salva possíveis cabeçalhos / textos iniciais de apoio
-                    texto_previo_ou_contexto = partes[0].strip()
-                    questoes_salvas = 0
+            except Exception as ex:
+                callback_interface(None, prog, f"❌ Falha ao processar {nome_arq}: {str(ex)}\n")
 
-                    # Percorre os fragmentos (Índice Ímpar: Número da questão | Índice Par: Conteúdo da questão)
-                    for idx_bloco in range(1, len(partes), 2):
-                        num_questao = partes[idx_bloco].strip()
-                        corpo_questao = partes[idx_bloco+1] if idx_bloco+1 < len(partes) else ""
-
-                        # 3. Mapeia e fatia as alternativas (A) até (E), mesmo que fiquem juntas na mesma linha visual
-                        padrao_alternativas = r"(\([A-E]\))"
-                        fragmentos_alternativas = re.split(padrao_alternativas, corpo_questao)
-                        
-                        enunciado_cru = fragmentos_alternativas[0].strip()
-                        # Limpa múltiplos tabs/espaços criados pelo layout em colunas
-                        enunciado_limpo = re.sub(r'[ \t]+', ' ', enunciado_cru)
-
-                        # Se houver um texto base herdado ou associado, concatena no enunciado
-                        if texto_previo_ou_contexto and ("Atenção" in texto_previo_ou_contexto or "Texto" in texto_previo_ou_contexto):
-                            enunciado_final = f"[{texto_previo_ou_contexto}]\n\n{enunciado_limpo}"
-                        else:
-                            enunciado_final = enunciado_limpo
-
-                        dict_alternativas = {"A": "", "B": "", "C": "", "D": "", "E": ""}
-                        
-                        # Processa os pares de letra indicadora + texto da alternativa correspondente
-                        for j in range(1, len(fragmentos_alternativas), 2):
-                            letra = fragmentos_alternativas[j].replace("(", "").replace(")", "").strip()
-                            texto_alt = fragmentos_alternativas[j+1].strip() if j+1 < len(fragmentos_alternativas) else ""
-                            
-                            # Evita que uma alternativa traga o pedaço de outra subsequente
-                            texto_alt = re.split(r"\s*\([A-E]\)", texto_alt)[0]
-                            texto_alt = re.sub(r'[ \t]+', ' ', texto_alt).strip()
-                            
-                            if letra in dict_alternativas:
-                                dict_alternativas[letra] = texto_alt
-
-                        # Atualiza o contexto se a questão atual contiver indicações de texto para as próximas
-                        if "Atenção:" in corpo_questao or "Texto" in corpo_questao:
-                            linhas = corpo_questao.split("\n")
-                            texto_previo_ou_contexto = "\n".join([l for l in linhas if not any(alt in l for alt in ["(A)","(B)","(C)","(D)","(E)"])]).strip()
-
-                        # 4. Gravação segura no Banco de Dados
-                        nova_questao = QuestaoSimuladoModel(
-                            materia="Língua Portuguesa",
-                            enunciado=enunciado_final,
-                            alternativas=dict_alternativas,
-                            alternativa_correta=None  # Regex não detecta gabarito em cadernos comuns de prova; fica nulo
-                        )
-                        session.add(nova_questao)
-                        questoes_salvas += 1
-
-                    session.commit()
-                    callback_interface(f"Sucesso: {questoes_salvas} questões manuais salvas de {nome_arq}.", prog)
-
-                except Exception as ex:
-                    session.rollback()
-                    callback_interface(f"Falha ao processar manualmente {nome_arq}: {str(ex)}", prog)
-
-            callback_interface("Extração por Código/Regex Concluída!", 1.0)
-
-        finally:
-            session.close()
+        # 4. Gravação do arquivo texto final com todo o conteúdo concatenado
+        if arquivos_processados > 0:
+            try:
+                # O arquivo txt será gerado na mesma pasta onde estão os PDFs
+                nome_arquivo_txt = f"extracao_acumulada_{materia_inicial.replace(' ', '_').lower()}.txt"
+                caminho_salvamento_txt = os.path.join(caminho_pdf, nome_arquivo_txt)
+                
+                with open(caminho_salvamento_txt, "w", encoding="utf-8") as f_txt:
+                    f_txt.write(texto_acumulado_final.strip())
+                
+                callback_interface(
+                    "Extração Concluída!", 
+                    1.0, 
+                    f"\n=== PROCESSO FINALIZADO ===\nTexto gerado e concatenado de {arquivos_processados} arquivo(s) em:\n➡️ {caminho_salvamento_txt}\n"
+                )
+            except Exception as e:
+                callback_interface("Erro ao salvar arquivo txt.", 1.0, f"❌ Não foi possível gerar o arquivo texto consolidado: {e}\n")
+        else:
+            callback_interface("Processamento Concluído sem resultados.", 1.0, "⚠️ Nenhuma matéria correspondente foi localizada para extração.\n")
 
     @staticmethod
     def executar_extracao_questoes(pasta_origem: str, callback_interface) -> None:
@@ -375,3 +369,147 @@ class GeminiService:
             callback_interface(f"\nSucesso! Arquivo '{nome_arquivo_final}' gerado.", 1.0)
         except Exception as e:
             callback_interface(f"Erro ao salvar arquivo: {str(e)}", 1.0)
+
+    @staticmethod
+    def separar_colunas_se_houver(bloco_texto):
+        """
+        Se o bloco contiver linhas largas com grande espaçamento central,
+        separa a coluna da esquerda (geralmente textos) da coluna da direita (questões).
+        """
+        linhas = bloco_texto.split('\n')
+        coluna_esquerda = []
+        coluna_direita = []
+        
+        for linha in linhas:
+            if "   " in linha:
+                # Divide a linha em duas metades aproximadas onde houver mais de 8 espaços vazios
+                partes = re.split(r'\s{8,}', linha, maxsplit=1)
+                if len(partes) == 2:
+                    coluna_esquerda.append(partes[0])
+                    coluna_direita.append(partes[1])
+                    continue
+            coluna_esquerda.append(linha)
+        
+        if len(coluna_direita) > len(linhas) * 0.3:
+            return "\n".join(coluna_esquerda), "\n".join(coluna_direita)
+        return bloco_texto, ""        
+
+    @staticmethod
+    def extrair_questoes_para_json_adequado(caminho_txt, caminho_json_saida):
+        if not os.path.exists(caminho_txt):
+            print("Arquivo de origem não encontrado.")
+            return
+
+        with open(caminho_txt, "r", encoding="utf-8") as f:
+            conteudo = f.read()
+
+        lista_dados_questoes = []
+
+        # 1. Separar o arquivo em blocos por páginas ou por grandes cabeçalhos de FONTE para não misturar provas
+        blocos_fontes = conteudo.split("================================================================================")
+        
+        for bloco_fonte in blocos_fontes:
+            if not bloco_fonte.strip() or "FONTE:" in bloco_fonte:
+                continue
+                
+            # Limpa ruídos clássicos de rodapé/cabeçalho antes de processar
+            bloco_limpo = re.sub(r".*?\n", "", bloco_fonte)
+            bloco_limpo = re.sub(r"FGV Projetos.*?\n", "", bloco_limpo)
+            bloco_limpo = re.sub(r"Tipo \d – Cor .*?\n", "", bloco_limpo)
+
+            # 2. Divide o texto identificando os números de questões isolados (ex: \n1\n ou \n2\n)
+            padrao_divisao = r"\n\s*([1-9][0-9]?)\s*\n"
+            partes = re.split(padrao_divisao, bloco_limpo)
+            
+            if len(partes) < 2:
+                continue
+
+            # O fragmento inicial antes da primeira questão geralmente armazena o Texto Base (coluna da esquerda)
+            texto_contexto_atual = partes[0].strip()
+            
+            # Remove linhas que sejam apenas numéricas ou ruídos do contexto inicial
+            texto_contexto_atual = "\n".join([l for l in texto_contexto_atual.split("\n") if not l.strip().isdigit()])
+
+            # Percorre os fragmentos de 2 em 2 (Índice Ímpar = Número da Questão, Índice Par = Conteúdo)
+            for idx in range(1, len(partes), 2):
+                num_questao = partes[idx].strip()
+                corpo_bloco = partes[idx+1] if idx+1 < len(partes) else ""
+                
+                # Se houver coluna dupla ativa, separa o conteúdo
+                col_esq, col_dir = GeminiService.separar_colunas_se_houver(corpo_bloco)
+                
+                if col_dir.strip():
+                    corpo_questao = col_dir
+                    # Se a coluna da esquerda contiver um texto base novo, atualiza o contexto
+                    if "Texto" in col_esq or "TEXTO" in col_esq:
+                        texto_contexto_atual = col_esq.strip()
+                else:
+                    corpo_questao = col_esq
+
+                # 3. Captura e isola as alternativas (A) até (E) de forma segura
+                padrao_alternativas = r"(\([A-E]\))"
+                fragmentos_alternativas = re.split(padrao_alternativas, corpo_questao)
+                
+                enunciado_cru = fragmentos_alternativas[0].strip()
+                # Remove quebras de linha abruptas do enunciado transformando-o em texto corrido
+                enunciado_limpo = re.sub(r'\s+', ' ', enunciado_cru).strip()
+                
+                lista_respostas = []
+                
+                # Processa os pares: Letra da alternativa -> Conteúdo
+                for j in range(1, len(fragmentos_alternativas), 2):
+                    letra = fragmentos_alternativas[j].strip()
+                    texto_alt = fragmentos_alternativas[j+1].strip() if j+1 < len(fragmentos_alternativas) else ""
+                    
+                    # Garante que o texto da alternativa não capture o início da próxima ou ruídos de fim de bloco
+                    texto_alt = re.split(r"\s*\([A-E]\)", texto_alt)[0]
+                    # Se houver uma mudança de questão que vazou para cá, corta o excesso
+                    texto_alt = re.split(r"\n\s*[1-9][0-9]?\s*\n", texto_alt)[0]
+                    
+                    texto_alt = re.sub(r'\s+', ' ', texto_alt).strip()
+                    
+                    if texto_alt:
+                        lista_respostas.append({
+                            "texto": f"{letra} {texto_alt}",
+                            "eh_correta": 0
+                        })
+
+                # Verifica se o próprio enunciado cita que pertence a um texto específico
+                texto_referencia_final = ""
+                if "texto 1" in enunciado_limpo.lower() or "texto i " in enunciado_limpo.lower():
+                    texto_referencia_final = texto_contexto_atual if "Texto 1" in texto_contexto_atual or "Texto I" in texto_contexto_atual else ""
+                elif "texto 2" in enunciado_limpo.lower() or "texto ii" in enunciado_limpo.lower():
+                    texto_referencia_final = texto_contexto_atual if "Texto 2" in texto_contexto_atual or "Texto II" in texto_contexto_atual else ""
+                else:
+                    # Se não houver menção explícita, associa o contexto acumulador caso ele pareça um texto de apoio
+                    texto_referencia_final = texto_contexto_atual if ("Texto" in texto_contexto_atual or len(texto_contexto_atual) > 100) else ""
+
+                # Ajusta quebras do texto de referência para ficar legível no JSON
+                if texto_referencia_final:
+                    texto_referencia_final = re.sub(r'[ \t]+', ' ', texto_referencia_final).strip()
+
+                # Ignora blocos vazios gerados por quebras incorretas do parser
+                if not enunciado_limpo or len(lista_respostas) < 2:
+                    continue
+
+                questao_dados = {
+                    "enunciado": f"{num_questao}. {enunciado_limpo}",
+                    "texto_referencia": texto_referencia_final if texto_referencia_final else None,
+                    "respostas": lista_respostas
+                }
+                
+                lista_dados_questoes.append(questao_dados)
+
+        # Estrutura a raiz final do JSON em conformidade com o formato exigido
+        json_final_estruturado = {
+            "entidade": "Questao",
+            "materia": "MATERIA IMPORTAÇÃO",
+            "ementa": "EMENTA IMPORTAÇÃO",
+            "dados": lista_dados_questoes
+        }
+
+        # Gravação final com tratamento de caracteres especiais e identação
+        with open(caminho_json_saida, "w", encoding="utf-8") as f_json:
+            json.dump(json_final_estruturado, f_json, ensure_ascii=False, indent=4)
+            
+        print(f"Sucesso! {len(lista_dados_questoes)} questões adequadas ao novo formato e salvas em: {caminho_json_saida}")
