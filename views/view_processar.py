@@ -26,13 +26,12 @@ class ViewProcessar(ctk.CTkFrame):
         self.txt_destino.grid(row=1, column=1, padx=5, pady=5, sticky="we")
         ctk.CTkButton(self.frame_grid, text="Procurar...", width=90, command=lambda: self.escolher_pasta(self.txt_destino)).grid(row=1, column=2, padx=10, pady=5)
 
-        ctk.CTkLabel(self.frame_grid, text="Termo p/ buscar:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
-        self.txt_termo = ctk.CTkEntry(self.frame_grid, width=380)
-        self.txt_termo.insert(0, "Decreto-Lei nº 220/75")
-        self.txt_termo.grid(row=2, column=1, padx=5, pady=5, sticky="we")
+        # Botões de Ação posicionados na Linha 2 do Grid
+        self.btn_filtrar = ctk.CTkButton(self.frame_grid, text="Separar PDFs", fg_color="#2980b9", command=self.disparar_filtro)
+        self.btn_filtrar.grid(row=2, column=1, padx=5, pady=10, sticky="e")
 
-        self.btn_filtrar = ctk.CTkButton(self.frame_grid, text="Separar PDFs", fg_color="#e67e22", command=self.disparar_filtro)
-        self.btn_filtrar.grid(row=2, column=2, padx=10, pady=5, sticky="we")
+        self.btn_filtrar_materias = ctk.CTkButton(self.frame_grid, text="Separar PDFs por Matérias", fg_color="#e67e22", command=self.disparar_filtro_materias)
+        self.btn_filtrar_materias.grid(row=2, column=2, padx=10, pady=10, sticky="we")
 
         self.frame_grid.columnconfigure(1, weight=1)
 
@@ -45,24 +44,46 @@ class ViewProcessar(ctk.CTkFrame):
             widget.delete(0, tk.END)
             widget.insert(0, cam)
 
+    def bloquear_botoes(self):
+        self.btn_filtrar.configure(state="disabled")
+        self.btn_filtrar_materias.configure(state="disabled")
+        self.txt_log.delete("1.0", tk.END)
+
+    def liberar_botoes(self):
+        self.btn_filtrar.configure(state="normal")
+        self.btn_filtrar_materias.configure(state="normal")
+
     def disparar_filtro(self):
         origem = self.txt_origem.get().strip()
         destino = self.txt_destino.get().strip()
-        termo = self.txt_termo.get().strip()
 
-        if not origem or not destino or not termo:
-            self.txt_log.insert(tk.END, "⚠️ Todos os parâmetros visuais são obrigatórios.\n")
+        if not origem or not destino:
+            self.txt_log.insert(tk.END, "⚠️ Os parâmetros de Origem e Destino são obrigatórios para a triagem FGV.\n")
             return
 
-        self.btn_filtrar.configure(state="disabled")
-        self.txt_log.delete("1.0", tk.END)
+        self.bloquear_botoes()
 
-        #threading.Thread(target=PdfSearchService.buscar_e_separar, args=(origem, destino, termo, self.callback_thread), daemon=True).start()
         threading.Thread(
             target=PdfSearchService.filtrar_por_padrao_fgv, 
             args=(origem, destino, self.callback_thread), 
             daemon=True
         ).start()        
+
+    def disparar_filtro_materias(self):
+        origem = self.txt_origem.get().strip()
+
+        if not origem:
+            self.txt_log.insert(tk.END, "⚠️ A pasta de Origem é obrigatória para a separação por matérias.\n")
+            return
+
+        self.bloquear_botoes()
+
+        # Executa a nova função injetando apenas a origem
+        threading.Thread(
+            target=PdfSearchService.separar_por_materias, 
+            args=(origem, self.callback_thread), 
+            daemon=True
+        ).start()
 
     def callback_thread(self, status_msg, progresso, log_msg=None):
         if status_msg is not None:
@@ -71,4 +92,4 @@ class ViewProcessar(ctk.CTkFrame):
             self.txt_log.insert(tk.END, log_msg)
             self.txt_log.see(tk.END)
         if progresso == 1.0:
-            self.btn_filtrar.configure(state="normal")
+            self.liberar_botoes()

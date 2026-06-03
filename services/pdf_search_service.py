@@ -119,3 +119,70 @@ class PdfSearchService:
             1.0, 
             f"\n=== TRIAGEM LOCAL FINALIZADA ===\n{cont_match} cadernos de prova da FGV identificados e separados.\n"
         )
+
+    @staticmethod
+    def separar_por_materias(pasta_origem: str, callback_interface) -> None:
+        """
+        Varre todos os PDFs da pasta de origem, identifica as matérias presentes no conteúdo
+        e cria subpastas automaticamente dentro da própria pasta de origem.
+        """
+        arquivos = [f for f in os.listdir(pasta_origem) if f.lower().endswith(".pdf")]
+        total = len(arquivos)
+
+        if total == 0:
+            callback_interface("Nenhum PDF encontrado na pasta.", 1.0, "Processamento vazio.\n")
+            return
+
+        materias_alvo = {
+            "Língua Portuguesa": "Língua Portuguesa",
+            "Legislação": "Legislação",
+            "Raciocínio Lógico": "Raciocínio Lógico",
+            "Informática": "Informática",
+            "Analista de Tecnologia": "Analista de Tecnologia"
+        }
+
+        total_copias = 0
+
+        for i, nome_arq in enumerate(arquivos):
+            prog = (i + 1) / total
+            callback_interface(f"Analisando conteúdo de {i+1}/{total}...", prog, None)
+            
+            caminho_completo_origem = os.path.join(pasta_origem, nome_arq)
+            materias_detectadas = []
+
+            try:
+                with open(caminho_completo_origem, "rb") as f:
+                    leitor = pypdf.PdfReader(f)
+                    texto_completo_pdf = ""
+                    
+                    for pagina in leitor.pages:
+                        txt = pagina.extract_text()
+                        if txt:
+                            texto_completo_pdf += txt
+
+                    for nome_materia, termo_busca in materias_alvo.items():
+                        if termo_busca in texto_completo_pdf:
+                            materias_detectadas.append(nome_materia)
+
+                if materias_detectadas:
+                    for materia in materias_detectadas:
+                        # Cria a pasta da matéria diretamente dentro do diretório original dos PDFs
+                        caminho_subpasta = os.path.join(pasta_origem, materia)
+                        os.makedirs(caminho_subpasta, exist_ok=True)
+                        
+                        shutil.copy2(caminho_completo_origem, os.path.join(caminho_subpasta, nome_arq))
+                        total_copias += 1
+
+                    lista_formatada = ", ".join(materias_detectadas)
+                    callback_interface(None, prog, f"📁 [{lista_formatada}] -> {nome_arq}\n")
+                else:
+                    callback_interface(None, prog, f"⏭️ [NENHUMA MATÉRIA COMBINOU] {nome_arq}\n")
+
+            except Exception as e:
+                callback_interface(None, prog, f"⚠️ [ERRO LEITURA] {nome_arq}: {e}\n")
+
+        callback_interface(
+            "Separação por Matérias Concluída!", 
+            1.0, 
+            f"\n=== PROCESSO DE MATÉRIAS FINALIZADO ===\nSubpastas criadas diretamente em:\n{pasta_origem}\n"
+        )        
