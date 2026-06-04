@@ -2,7 +2,7 @@ import threading
 import tkinter as tk
 from tkinter import filedialog
 import customtkinter as ctk
-from services.gemini_service import GeminiService
+from services.extracao_service import ExtracaoService
 from services.pdf_search_service import PdfSearchService  # Importado para acessar a nova rotina
 import os
 
@@ -66,9 +66,9 @@ class ViewExtracao(ctk.CTkFrame):
 
         # Botão de Execução - Manual
         self.btn_disparar_manual = ctk.CTkButton(
-            self, text="Iniciar Processamento Manual", 
+            self, text="Extrair Texto/Matérias", 
             fg_color="#2c3e50", hover_color="#34495e",
-            command=self._iniciar_extracao_manual_thread
+            command=self._extrair_texto_materia_tread            
         )
         self.btn_disparar_manual.pack(fill="x", padx=20, pady=(5, 5))        
 
@@ -99,24 +99,7 @@ class ViewExtracao(ctk.CTkFrame):
         self.btn_extrair_json.configure(state="normal")
         self.btn_procurar.configure(state="normal")
 
-    """
-    def _iniciar_extracao_gemini_thread(self):
-        pasta = self.entry_pasta.get().strip()
-        
-        if not pasta:
-            self._atualizar_interface("Erro: Selecione a pasta com os PDFs antes de continuar.", 0)
-            return
-            
-        self._bloquear_componentes()
-        
-        threading.Thread(
-            target=GeminiService.executar_extracao_questoes,
-            args=(pasta, self._atualizar_interface_temp),
-            daemon=True
-        ).start()
-    """        
-
-    def _iniciar_extracao_manual_thread(self):
+    def _extrair_texto_materia_tread(self):
         pasta = self.entry_pasta.get().strip()
         restricao = self.entry_restricao.get().strip()
         
@@ -127,10 +110,9 @@ class ViewExtracao(ctk.CTkFrame):
         self._bloquear_componentes()
         
         threading.Thread(
-            #target=GeminiService.executar_extracao_manual,
-            #args=(pasta, restricao, self._atualizar_interface),
-            target=GeminiService.executar_extracao_pdf,
+            target=ExtracaoService.extrair_texto_materia,
             args=(pasta, self._atualizar_interface),
+            
 
             daemon=True
         ).start()
@@ -161,7 +143,7 @@ class ViewExtracao(ctk.CTkFrame):
         # Função interna que rodará na Thread secundária
         def worker():
             try:
-                GeminiService.extrair_questoes_para_json_adequado(arquivo_txt, arquivo_json_saida)
+                ExtracaoService.extrair_questoes_json(arquivo_txt, arquivo_json_saida)
                 # Sincroniza com a Main Thread para atualizar o sucesso
                 self.after(0, self._atualizar_interface, "Conversão JSON Concluída!", 1.0, 
                            f"✅ Arquivo JSON gerado com absoluto sucesso!\nSalvo em: {arquivo_json_saida}\n")
