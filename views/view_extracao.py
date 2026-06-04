@@ -27,7 +27,9 @@ class ViewExtracao(ctk.CTkFrame):
         self.entry_pasta = ctk.CTkEntry(self.frame_inputs, placeholder_text="Selecione a pasta onde estão os arquivos PDFs...")
         self.entry_pasta.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=(0, 15))
         
-        caminho_linux = os.path.join(os.path.expanduser("~"), "Downloads", "selecionadas")
+        #caminho_linux = os.path.join(os.path.expanduser("~"), "Downloads", "selecionadas")
+        caminho_linux = os.path.join(os.path.expanduser("~"), "Área de trabalho","Concursos","Provas Objetivas","Teste")        
+        
         self.entry_pasta.insert(0, caminho_linux)
        
         self.btn_procurar = ctk.CTkButton(self.frame_inputs, text="Procurar", width=100, command=self._selecionar_pasta)
@@ -52,6 +54,7 @@ class ViewExtracao(ctk.CTkFrame):
         self.txt_log = ctk.CTkTextbox(self, height=150)
         self.txt_log.pack(fill="both", expand=True, padx=20, pady=10)
         
+        """
         # Botão de Execução - Gemini
         self.btn_disparar_gemini = ctk.CTkButton(
             self, text="Iniciar Processamento Gemini", 
@@ -59,6 +62,7 @@ class ViewExtracao(ctk.CTkFrame):
             command=self._iniciar_extracao_gemini_thread
         )
         self.btn_disparar_gemini.pack(fill="x", padx=20, pady=(10, 5))
+        """
 
         # Botão de Execução - Manual
         self.btn_disparar_manual = ctk.CTkButton(
@@ -83,18 +87,19 @@ class ViewExtracao(ctk.CTkFrame):
             self.entry_pasta.insert(0, pasta)
 
     def _bloquear_componentes(self):
-        self.btn_disparar_gemini.configure(state="disabled")
+        #self.btn_disparar_gemini.configure(state="disabled")
         self.btn_disparar_manual.configure(state="disabled")
         self.btn_extrair_json.configure(state="disabled")
         self.btn_procurar.configure(state="disabled")
         self.txt_log.delete("1.0", tk.END)
 
     def _liberar_componentes(self):
-        self.btn_disparar_gemini.configure(state="normal")
+        #self.btn_disparar_gemini.configure(state="normal")
         self.btn_disparar_manual.configure(state="normal")
         self.btn_extrair_json.configure(state="normal")
         self.btn_procurar.configure(state="normal")
 
+    """
     def _iniciar_extracao_gemini_thread(self):
         pasta = self.entry_pasta.get().strip()
         
@@ -109,6 +114,7 @@ class ViewExtracao(ctk.CTkFrame):
             args=(pasta, self._atualizar_interface_temp),
             daemon=True
         ).start()
+    """        
 
     def _iniciar_extracao_manual_thread(self):
         pasta = self.entry_pasta.get().strip()
@@ -121,8 +127,11 @@ class ViewExtracao(ctk.CTkFrame):
         self._bloquear_componentes()
         
         threading.Thread(
-            target=GeminiService.executar_extracao_manual,
-            args=(pasta, restricao, self._atualizar_interface),
+            #target=GeminiService.executar_extracao_manual,
+            #args=(pasta, restricao, self._atualizar_interface),
+            target=GeminiService.executar_extracao_pdf,
+            args=(pasta, self._atualizar_interface),
+
             daemon=True
         ).start()
 
