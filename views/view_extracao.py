@@ -68,7 +68,7 @@ class ViewExtracao(ctk.CTkFrame):
         self.btn_disparar_manual = ctk.CTkButton(
             self, text="Extrair Texto/Matérias", 
             fg_color="#2c3e50", hover_color="#34495e",
-            command=self._extrair_texto_materia_tread            
+            command=self._extrair_texto_limpo_tread            
         )
         self.btn_disparar_manual.pack(fill="x", padx=20, pady=(5, 5))        
 
@@ -99,19 +99,19 @@ class ViewExtracao(ctk.CTkFrame):
         self.btn_extrair_json.configure(state="normal")
         self.btn_procurar.configure(state="normal")
 
-    def _extrair_texto_materia_tread(self):
+    def _extrair_texto_limpo_tread(self):
         pasta = self.entry_pasta.get().strip()
-        restricao = self.entry_restricao.get().strip()
+        materia = self.entry_restricao.get().strip()
         
-        if not pasta or not restricao:
+        if not pasta or not materia:
             self._atualizar_interface("Erro: A pasta e a Matéria Inicial são obrigatórias.", 0)
             return
             
         self._bloquear_componentes()
         
         threading.Thread(
-            target=ExtracaoService.extrair_texto_materia,
-            args=(pasta, self._atualizar_interface),
+            target=ExtracaoService.extrair_texto_limpo,
+            args=(pasta, materia, self._atualizar_interface),
             
 
             daemon=True

@@ -12,20 +12,6 @@ import re
 import json
 from pypdf import PdfReader
 
-
-
-"""
-# 1. Definição da estrutura de dados esperada (Pydantic) para garantir o JSON correto
-class QuestaoSchema(BaseModel):
-    enunciado: str = Field(description="O enunciado completo da questão de concurso.")
-    alternativa_A: str = Field(description="Texto da alternativa A.")
-    alternativa_B: str = Field(description="Texto da alternativa B.")
-    alternativa_C: str = Field(description="Texto da alternativa C.")
-    alternativa_D: str = Field(description="Texto da alternativa D.")
-    alternativa_E: str = Field(description="Texto da alternativa E.")
-    alternativa_correta: Optional[str] = Field(description="Apenas a letra correspondente à alternativa correta (A, B, C, D ou E). Se não houver, nulo.")
-"""
-
 class RespostaSchema(BaseModel):
     texto: str = Field(description="O texto descritivo da alternativa.")
     eh_correta: int = Field(description="1 se for a alternativa correta, 0 caso contrário.")
@@ -55,7 +41,7 @@ class ExtracaoService:
         """Inicializa o cliente do Gemini se a biblioteca e a chave estiverem disponíveis."""
 
     @staticmethod
-    def extrair_texto_materia(caminho_pdf, callback_interface):
+    def extrair_texto_limpo(caminho_pdf, materia, callback_interface):
         """
         Varre os PDFs, identifica o bloco de texto entre a materia_inicial e a próxima matéria
         da lista de possíveis matérias da FGV, concatena tudo, sanitiza o excesso de linhas
@@ -83,29 +69,78 @@ class ExtracaoService:
         texto_acumulado_final = ""
         arquivos_processados = 0
 
+        # Função auxiliar para limpar profundamente caracteres de controle ocultos (\x0c, etc.)
+        def limpar_linha_profundo(txt):
+            txt_limpo = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', txt)
+            return txt_limpo.strip()        
+
         for i, nome_arq in enumerate(arquivos):
             prog = (i + 1) / total
             callback_interface(f"Analisando arquivo {i+1}/{total}: {nome_arq}...", prog, f"Analisando {nome_arq}...\n")
             caminho_origem = os.path.join(caminho_pdf, nome_arq)
-            
-            texto_completo_prova = ""
+
             try:
+                # ------------------------------------------------------------------
+                # ETAPA 1: PRÉ-LEITURA DO DOCUMENTO COMPLETO PARA MAPEAMENTO DE LIXO
+                # ------------------------------------------------------------------
+                callback_interface(None, prog, f"🔍 Mapeando cabeçalhos e rodapés repetidos em {nome_arq}...\n")
+                
+                contagem_linhas_documento = {}
+                
+                with open(caminho_origem, "rb") as f:
+                    leitor = PdfReader(f)
+                    for num_pag in range(len(leitor.pages)):
+                        if num_pag == 0:
+                            continue
+                        texto_pag_bruto = leitor.pages[num_pag].extract_text(extraction_mode="layout")
+                        if texto_pag_bruto:
+                            for linha in texto_pag_bruto.splitlines():
+                                linha_limpa = limpar_linha_profundo(linha)
+                                # Mantemos o critério de tamanho mínimo de 10 caracteres
+                                if len(linha_limpa) >= 10:
+                                    contagem_linhas_documento[linha_limpa] = contagem_linhas_documento.get(linha_limpa, 0) + 1
+
+                # Filtro para ignorar alternativas (A)..(E) de entrarem no lixo
+                padrao_alternativa = re.compile(r'^\s*\([A-E]\)')
+
+                padrao_rodape_variavel = re.compile(r'Tipo.*Pág', re.IGNORECASE)
+                
+                # Cria o conjunto de linhas que se repetem 3 ou mais vezes no PDF completo
+                MIN_REP = 3
+                linhas_lixo_documento = {
+                    linha for linha, qtd in contagem_linhas_documento.items()
+                    if qtd >= MIN_REP and not padrao_alternativa.match(linha)
+                    or padrao_rodape_variavel.search(linha)
+                }            
+            
+                # ------------------------------------------------------------------
+                # ETAPA 2: FLUXO DE LEITURA REAL E PROCESSAMENTO POR PÁGINA
+                # ------------------------------------------------------------------
+                texto_completo_prova = ""
+                
                 with open(caminho_origem, "rb") as f:                    
                     leitor = PdfReader(f)
                     for num_pag in range(len(leitor.pages)):
-                        # Mantendo o modo layout para evitar misturar textos horizontais de duas colunas
                         if num_pag == 0:
                             continue
 
                         texto_pag = leitor.pages[num_pag].extract_text(extraction_mode="layout")
                         if texto_pag:
-                            texto_completo_prova += ExtracaoService.unificar_colunas(texto_pag)
+                            # Filtra as linhas repetidas (lixo) desta página ANTES da unificação
+                            linhas_pagina_filtradas = []
+                            for linha in texto_pag.splitlines():
+                                if limpar_linha_profundo(linha) in linhas_lixo_documento:
+                                    continue # Ignora/Remove a linha repetida (cabeçalho, rodapé, etc.)
+                                
+                                linhas_pagina_filtradas.append(linha)
+                            
+                            # Reconstroi o texto da página limpo para a unificação de colunas
+                            texto_pag_limpo = "\n".join(linhas_pagina_filtradas)
+                            
+                            # Agora sim, unifica com o layout livre de interferências de cabeçalho/rodapé
+                            texto_completo_prova += ExtracaoService.unificar_colunas(texto_pag_limpo)
 
-                # Remove repetições na prova (cabeçalho, rodapé, ...)
-                texto_completo_prova = ExtracaoService.limpa_repeticoes(texto_completo_prova)
-                
                 texto_acumulado_final += texto_completo_prova
-               
                 arquivos_processados += 1
 
             except Exception as ex:
@@ -133,6 +168,8 @@ class ExtracaoService:
                 callback_interface("Erro ao salvar arquivo txt.", 1.0, f"❌ Não foi possível gerar o arquivo texto consolidado: {e}\n")
         else:
             callback_interface("Processamento Concluído sem resultados.", 1.0, "⚠️ Nenhuma matéria correspondente foi localizada para extração.\n")
+
+        ExtracaoService.extrair_materia(caminho_salvamento_txt, materia,callback_interface)            
 
     @staticmethod
     def unificar_colunas(texto_pagina):
@@ -327,7 +364,7 @@ class ExtracaoService:
         print(f"Sucesso! {len(lista_dados_questoes)} questões estruturadas linha por linha e salvas em: {caminho_json_saida}")
 
     @staticmethod
-    def limpa_repeticoes(texto, min_len=10, min_rep=3):
+    def limpa_repeticoes(texto, min_len=7, min_rep=3):
         """
         Garante que apenas LINHAS INTEIRAS repetidas (como cabeçalhos e rodapés)
         sejam removidas, protegendo a integridade das palavras e textos do documento.
@@ -365,4 +402,96 @@ class ExtracaoService:
                 continue  # Remove a linha repetitiva inteira
             linhas_finais.append(linha)
 
-        return "\n".join(linhas_finais)            
+        return "\n".join(linhas_finais)     
+
+    @staticmethod
+    def extrair_materia(caminho_txt_consolidado, materia_inicial, callback_interface):
+        """
+        Lê o arquivo de texto unificado/consolidado, identifica o bloco de texto 
+        entre a materia_inicial e a próxima matéria da lista de possíveis matérias da FGV,
+        isola o conteúdo e gera um arquivo texto final específico para a matéria informada.
+        """
+        import os
+        import re
+
+        if not os.path.exists(caminho_txt_consolidado):
+            callback_interface("Arquivo consolidado não encontrado.", 1.0, f"❌ Erro: {caminho_txt_consolidado} não existe.\n")
+            return
+
+        callback_interface(f"Lendo arquivo consolidado para extrair '{materia_inicial}'...", 0.1, "Iniciando busca por escopo...\n")
+
+        # Lista de possíveis matérias finais para servir de limite/corte (Strict Case Sensitive)
+        # Removidas as duplicatas da lista original
+
+        # Lista de possíveis matérias finais para servir de limite/corte (Estrito Case Sensitive)
+        lista_materias_possiveis = [
+            "Língua Portuguesa", "Língua Portuguesa",
+            "Legislação", "Legislação",
+            "Raciocínio Lógico", "Raciocínio Lógico",
+            "Informática", "Informática",
+            "Analista de Tecnologia", "Analista de Tecnologia",
+            "Direito", "Direito",
+            "Conhecimentos Específicos", "Conhecimentos Específicos",
+            "Matemática", "Matemática",
+            "Língua Inglesa", "Língua Inglesa",
+            "História", "História",
+            "Geografia","Geografia"
+        ]
+
+        try:
+            # 1. Carrega o conteúdo completo do TXT que já passou pelas limpezas e unificação
+            with open(caminho_txt_consolidado, "r", encoding="utf-8") as f:
+                texto_completo = f.read()
+
+            # 2. Encontra onde começa a matéria desejada (materia_inicial) - Strict Case
+            # Exige que a matéria esteja em uma linha própria (âncora ^), tolerando espaços/quebras
+            termo_inicio_esc = re.escape(materia_inicial)
+            inicio_match = re.search(fr"^\s*{termo_inicio_esc}\s*$", texto_completo, re.MULTILINE)
+            
+            if not inicio_match:
+                callback_interface(f"Matéria '{materia_inicial}' não encontrada.", 1.0, f"⚠️ Aviso: Matéria '{materia_inicial}' não foi localizada no texto.\n")
+                return
+
+            # Descarta tudo o que está antes do início da matéria informada
+            texto_escopo = texto_completo[inicio_match.end():].lstrip()
+            
+            # 3. Constrói dinamicamente a Regex de parada com as matérias que NÃO são a inicial
+            materias_corte = [m for m in lista_materias_possiveis if m != materia_inicial]
+            
+            # ALTERAÇÃO AQUI: Mudamos para aceitar no máximo 1 palavra complementar
+            # \s* -> espaços opcionais após o termo principal
+            # [^\s]+  -> obrigatoriamente uma palavra complementar (sem espaços internos)
+            # \s* -> espaços opcionais no final da linha antes da âncora $
+            padrao_fim = r"^\s*(" + "|".join([re.escape(m) for m in materias_corte]) + r")(?:\s+[^\s]+)?\s*$"
+            
+            # Execução estrita (MULTILINE para habilitar o ^ no início de linhas internas)
+            fim_match = re.search(padrao_fim, texto_escopo, re.MULTILINE)
+            
+            if fim_match:
+                # Corta o texto exatamente no ponto onde a nova linha da outra matéria começa
+                texto_escopo = texto_escopo[:fim_match.start()]
+
+            # --- SANITIZAÇÃO DE LINHAS EM BRANCO SOBRANTES ---
+            texto_escopo_limpo = re.sub(r'(\n\s*){3,}', '\n\n', texto_escopo).strip()
+
+            if not texto_escopo_limpo:
+                callback_interface("Escopo vazio.", 1.0, f"⚠️ Nenhum conteúdo útil localizado após o termo '{materia_inicial}'.\n")
+                return
+
+            # 4. Gravação do arquivo texto final específico desta matéria
+            pasta_origem = os.path.dirname(caminho_txt_consolidado)
+            nome_materia_limpo = materia_inicial.replace(' ', '_').lower()
+            nome_arquivo_txt = f"extracao_final_{nome_materia_limpo}.txt"
+            caminho_salvamento_txt = os.path.join(pasta_origem, nome_arquivo_txt)
+            
+            with open(caminho_salvamento_txt, "w", encoding="utf-8") as f_txt:
+                f_txt.write(texto_escopo_limpo)
+            
+            callback_interface(
+                "Extração da Matéria Concluída!", 
+                1.0, 
+                f"\n=== EXTRAÇÃO DE MATÉRIA FINALIZADA ===\nBloco de '{materia_inicial}' isolado com sucesso!\n➡️ Arquivo gerado em: {caminho_salvamento_txt}\n"
+            )
+
+        except Exception as ex:
+            callback_interface("Erro na extração.", 1.0, f"❌ Falha crítica ao isolar matéria: {str(ex)}\n")
