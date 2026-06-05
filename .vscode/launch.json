@@ -10,8 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "justMyCode": true,
-            "python": "${workspaceFolder}/env/bin/python"
+            "justMyCode": true
         }
     ]
 }

@@ -45,6 +45,7 @@ class ExtracaoService:
         import os
         import re
         from pypdf import PdfReader
+        from collections import Counter
 
         arquivos_brutos = [f for f in os.listdir(caminho_pdf) if f.lower().endswith(".pdf")]
 
@@ -60,9 +61,24 @@ class ExtracaoService:
             callback_interface("Nenhum PDF encontrado na pasta de origem.", 1.0, "Processamento vazio.\n")
             return
 
+        # Lista de matérias permitidas fornecida
+        materias_obrigatorias = {
+            "Língua Portuguesa", 
+            "Legislação",
+            "Raciocínio Lógico", 
+            "Informática", 
+            "Analista de Tecnologia", 
+            "Direito", 
+            "Conhecimentos Específicos", 
+            "Matemática", 
+            "Língua Inglesa", 
+            "História", 
+            "Geografia"
+        }
+
         texto_acumulado_final = ""
         arquivos_processados = 0
-    
+
         for i, nome_arq in enumerate(arquivos):
             prog = (i + 1) / total
             callback_interface(f"Analisando arquivo {i+1}/{total}: {nome_arq}...", prog, f"Analisando {nome_arq}...\n")
@@ -71,60 +87,125 @@ class ExtracaoService:
             try:
                 texto_completo = ""
                 
-                with open(caminho_origem, "rb") as f:                    
-                    leitor = PdfReader(f)
-                    for num_pag in range(len(leitor.pages)):
-                        if num_pag < 2:
-                            continue
+                # -----------------------------------------------------------------
+                # ROTINA DE VERIFICAÇÃO DE REPETIÇÃO (Linha inteira idêntica)
+                # -----------------------------------------------------------------
+                leitor = PdfReader(caminho_origem)
+                contador_linhas_globais = Counter()
+                
+                # Primeira passada rápida no PDF para mapear o que se repete entre as páginas
+                for num_pag in range(len(leitor.pages)):
+                    if num_pag < 2:  # Mantém seu critério de pular as duas primeiras páginas
+                        continue
+                    texto_pag = leitor.pages[num_pag].extract_text(extraction_mode="plain")
+                    if texto_pag:
+                        for linha in texto_pag.splitlines():
+                            linha_f = linha.strip()
+                            if linha_f:
+                                contador_linhas_globais[linha_f] += 1
+                
+                # Guardamos as linhas exatas que aparecem em mais de 2 páginas (Cabeçalhos/Rodapés fixos)
+                linhas_repetidas_lixo = {linha for linha, qtd in contador_linhas_globais.items() if qtd > 2}
+                
+                # -----------------------------------------------------------------
+                # SEGUNDA PASSADA: PROCESSAMENTO E EXTRAÇÃO FILTRADA
+                # -----------------------------------------------------------------
+                for num_pag in range(len(leitor.pages)):
+                    if num_pag < 2:
+                        continue
 
-                        texto_pag = leitor.pages[num_pag].extract_text(extraction_mode="plain")
-                        
-                        if texto_pag:
-                            linhas_corrigidas = []
-                            prefixo_atual = ""      
-                            conteudo_acumulado = [] 
-                            
-                            for linha in texto_pag.splitlines():
-                                linha_limpa = linha.strip()
-                                if not linha_limpa:
-                                    continue
-                                
-                                se_inicio_bloco = re.match(r'^(\d+|\([A-E]\))', linha_limpa)
+                    texto_pag = leitor.pages[num_pag].extract_text(extraction_mode="plain")
+                    if not texto_pag:
+                        continue
 
-                                if se_inicio_bloco:
-                                    if prefixo_atual or conteudo_acumulado:
-                                        texto_completo_bloco = " ".join(conteudo_acumulado)
-                                        texto_limpo_bloco = " ".join(texto_completo_bloco.split())
-                                        linhas_corrigidas.append(f"{prefixo_atual} {texto_limpo_bloco}".strip())
-                                    
-                                    prefixo_atual = se_inicio_bloco.group(1) 
-                                    resto_da_linha = linha_limpa[len(prefixo_atual):].strip()
-                                    conteudo_acumulado = [resto_da_linha] if resto_da_linha else []                                
-                                else:
-                                    conteudo_acumulado.append(linha_limpa)  
+                    linhas_com_conteudo = [l for l in texto_pag.splitlines() if l.strip()]
 
-                            # --- FIM DO LAÇO DAS LINHAS DA PÁGINA ---
-                            if prefixo_atual or conteudo_acumulado:
+                    # Se a página tiver menos de 6 linhas de texto útil (como a página que só tem "Realização"), ela é descartada!
+                    if len(linhas_com_conteudo) < 6:
+                        continue                                                                        
+                    
+                    linhas_corrigidas = []
+                    prefixo_atual = ""      
+                    conteudo_acumulado = [] 
+                    
+                    for linha in texto_pag.splitlines():
+                        linha_limpa = linha.strip()
+
+                        if not linha_limpa:
+                            if prefixo_atual == "(E)" and conteudo_acumulado:
                                 texto_completo_bloco = " ".join(conteudo_acumulado)
                                 texto_limpo_bloco = " ".join(texto_completo_bloco.split())
                                 linhas_corrigidas.append(f"{prefixo_atual} {texto_limpo_bloco}".strip())
+                                prefixo_atual = ""
+                                conteudo_acumulado = []
+                            continue                        
+                       
+                        # A) Filtro por Repetição Absoluta (Pega "Concurso Público...", rodapés fixos, etc.)
+                        if linha_limpa in linhas_repetidas_lixo:
+                            continue
+                            
+                        # B) Filtro Regex Dinâmico (Pega variações de "Tipo X – Cor XXXX – Página Y")
+                        if re.search(r'.*Tipo.*Página.*', linha_limpa):
+                            continue 
+                        
+                        # C) Lógica de Isolamento das Matérias do Concurso
+                        if linha_limpa in materias_obrigatorias:
+                            if prefixo_atual or conteudo_acumulado:
+                                texto_completo_bloco = " ".join(conteudo_acumulado)
+                                texto_limpo_bloco = " ".join(texto_completo_bloco.split())
+                                if not prefixo_atual:
+                                        linhas_corrigidas.append(texto_limpo_bloco)
+                                else:
+                                        linhas_corrigidas.append(f"{prefixo_atual} {texto_limpo_bloco}".strip())
+                            
+                            linhas_corrigidas.append(linha_limpa)
+                            prefixo_atual = ""
+                            conteudo_acumulado = []
+                            continue
 
-                            # Reconstrói adicionando explicitamente a quebra de linha ao final da página
-                            texto_pag_limpo = "\n".join(linhas_corrigidas) + "\n"
-                            texto_completo += texto_pag_limpo                        
-                           
+                        # D) Processamento das Questões e Alternativas estruturadas
+                        se_inicio_bloco = re.match(r'^(\d+|\([A-E]\))', linha_limpa)
+
+                        if se_inicio_bloco:
+                            if prefixo_atual or conteudo_acumulado:
+                                texto_completo_bloco = " ".join(conteudo_acumulado)
+                                texto_limpo_bloco = " ".join(texto_completo_bloco.split())
+                                
+                                if not prefixo_atual:
+                                        linhas_corrigidas.append(texto_limpo_bloco)
+                                else:
+                                        linhas_corrigidas.append(f"{prefixo_atual} {texto_limpo_bloco}".strip())
+                            
+                            prefixo_atual = se_inicio_bloco.group(1) 
+                            resto_da_linha = linha_limpa[len(prefixo_atual):].strip()
+                            conteudo_acumulado = [resto_da_linha] if resto_da_linha else []                                    
+                        else:
+                            conteudo_acumulado.append(linha_limpa)  
+
+                    # Finalização da página
+                    if prefixo_atual or conteudo_acumulado:
+                        texto_completo_bloco = " ".join(conteudo_acumulado)
+                        texto_limpo_bloco = " ".join(texto_completo_bloco.split())
+                        if not prefixo_atual:
+                            linhas_corrigidas.append(texto_limpo_bloco)
+                        else:
+                            linhas_corrigidas.append(f"{prefixo_atual} {texto_limpo_bloco}".strip())
+
+                    texto_pag_limpo = "\n".join(linhas_corrigidas) + "\n"
+                    texto_completo += texto_pag_limpo                                
+                
                 texto_acumulado_final += texto_completo
                 arquivos_processados += 1
 
             except Exception as ex:
                 callback_interface(None, prog, f"❌ Falha ao processar {nome_arq}: {str(ex)}\n")
 
-        # 4. Gravação do arquivo texto final consolidado
+        # Gravação do arquivo texto final consolidado
         if arquivos_processados > 0:
             try:
                 nome_arquivo_txt = f"extracao_acumulada_completo.txt"
                 caminho_salvamento_txt = os.path.join(caminho_pdf, nome_arquivo_txt)
-              
+            
                 with open(caminho_salvamento_txt, "w", encoding="utf-8") as f_txt:
                     f_txt.write(texto_acumulado_final.strip())
                 
@@ -136,7 +217,9 @@ class ExtracaoService:
             except Exception as e:
                 callback_interface("Erro ao salvar arquivo txt.", 1.0, f"❌ Não foi possível gerar o arquivo texto consolidado: {e}\n")
         else:
-            callback_interface("Processamento Concluído sem resultados.", 1.0, "⚠️ Nenhuma matéria correspondente foi localizada para extração.\n")  
+            callback_interface("Processamento Concluído sem resultados.", 1.0, "⚠️ Nenhuma matéria correspondente foi localizada para extração.\n")
+
+        ExtracaoService.extrair_materia(caminho_salvamento_txt, materia, callback_interface)            
 
     #Processo utilizando modo "layout"(mais complexo e com muitas falhas)
     #Renomeado para eventual utilização como referencia
