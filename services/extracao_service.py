@@ -42,6 +42,106 @@ class ExtracaoService:
 
     @staticmethod
     def extrair_texto_limpo(caminho_pdf, materia, callback_interface):
+        import os
+        import re
+        from pypdf import PdfReader
+
+        arquivos_brutos = [f for f in os.listdir(caminho_pdf) if f.lower().endswith(".pdf")]
+
+        # Ordenação dos arquivos por alfanuméricos
+        arquivos = sorted(
+            arquivos_brutos, 
+            key=lambda s: [int(texto) if texto.isdigit() else texto.lower() for texto in re.split(r'(\d+)', s)]
+        )       
+
+        total = len(arquivos)
+
+        if total == 0:
+            callback_interface("Nenhum PDF encontrado na pasta de origem.", 1.0, "Processamento vazio.\n")
+            return
+
+        texto_acumulado_final = ""
+        arquivos_processados = 0
+    
+        for i, nome_arq in enumerate(arquivos):
+            prog = (i + 1) / total
+            callback_interface(f"Analisando arquivo {i+1}/{total}: {nome_arq}...", prog, f"Analisando {nome_arq}...\n")
+            caminho_origem = os.path.join(caminho_pdf, nome_arq)
+
+            try:
+                texto_completo = ""
+                
+                with open(caminho_origem, "rb") as f:                    
+                    leitor = PdfReader(f)
+                    for num_pag in range(len(leitor.pages)):
+                        if num_pag < 2:
+                            continue
+
+                        texto_pag = leitor.pages[num_pag].extract_text(extraction_mode="plain")
+                        
+                        if texto_pag:
+                            linhas_corrigidas = []
+                            prefixo_atual = ""      
+                            conteudo_acumulado = [] 
+                            
+                            for linha in texto_pag.splitlines():
+                                linha_limpa = linha.strip()
+                                if not linha_limpa:
+                                    continue
+                                
+                                se_inicio_bloco = re.match(r'^(\d+|\([A-E]\))', linha_limpa)
+
+                                if se_inicio_bloco:
+                                    if prefixo_atual or conteudo_acumulado:
+                                        texto_completo_bloco = " ".join(conteudo_acumulado)
+                                        texto_limpo_bloco = " ".join(texto_completo_bloco.split())
+                                        linhas_corrigidas.append(f"{prefixo_atual} {texto_limpo_bloco}".strip())
+                                    
+                                    prefixo_atual = se_inicio_bloco.group(1) 
+                                    resto_da_linha = linha_limpa[len(prefixo_atual):].strip()
+                                    conteudo_acumulado = [resto_da_linha] if resto_da_linha else []                                
+                                else:
+                                    conteudo_acumulado.append(linha_limpa)  
+
+                            # --- FIM DO LAÇO DAS LINHAS DA PÁGINA ---
+                            if prefixo_atual or conteudo_acumulado:
+                                texto_completo_bloco = " ".join(conteudo_acumulado)
+                                texto_limpo_bloco = " ".join(texto_completo_bloco.split())
+                                linhas_corrigidas.append(f"{prefixo_atual} {texto_limpo_bloco}".strip())
+
+                            # Reconstrói adicionando explicitamente a quebra de linha ao final da página
+                            texto_pag_limpo = "\n".join(linhas_corrigidas) + "\n"
+                            texto_completo += texto_pag_limpo                        
+                           
+                texto_acumulado_final += texto_completo
+                arquivos_processados += 1
+
+            except Exception as ex:
+                callback_interface(None, prog, f"❌ Falha ao processar {nome_arq}: {str(ex)}\n")
+
+        # 4. Gravação do arquivo texto final consolidado
+        if arquivos_processados > 0:
+            try:
+                nome_arquivo_txt = f"extracao_acumulada_completo.txt"
+                caminho_salvamento_txt = os.path.join(caminho_pdf, nome_arquivo_txt)
+              
+                with open(caminho_salvamento_txt, "w", encoding="utf-8") as f_txt:
+                    f_txt.write(texto_acumulado_final.strip())
+                
+                callback_interface(
+                    "Extração Concluída!", 
+                    1.0, 
+                    f"\n=== PROCESSO FINALIZADO ===\nTexto gerado e concatenado de {arquivos_processados} arquivo(s) em:\n➡️ {caminho_salvamento_txt}\n"
+                )
+            except Exception as e:
+                callback_interface("Erro ao salvar arquivo txt.", 1.0, f"❌ Não foi possível gerar o arquivo texto consolidado: {e}\n")
+        else:
+            callback_interface("Processamento Concluído sem resultados.", 1.0, "⚠️ Nenhuma matéria correspondente foi localizada para extração.\n")  
+
+    #Processo utilizando modo "layout"(mais complexo e com muitas falhas)
+    #Renomeado para eventual utilização como referencia
+    @staticmethod
+    def _extrair_texto_limpo(caminho_pdf, materia, callback_interface):
         """
         Varre os PDFs, identifica o bloco de texto entre a materia_inicial e a próxima matéria
         da lista de possíveis matérias da FGV, concatena tudo, sanitiza o excesso de linhas
@@ -86,6 +186,8 @@ class ExtracaoService:
                 callback_interface(None, prog, f"🔍 Mapeando cabeçalhos e rodapés repetidos em {nome_arq}...\n")
                 
                 contagem_linhas_documento = {}
+
+                maior_numero_caracteres = 0
                 
                 with open(caminho_origem, "rb") as f:
                     leitor = PdfReader(f)
@@ -94,8 +196,14 @@ class ExtracaoService:
                             continue
                         texto_pag_bruto = leitor.pages[num_pag].extract_text(extraction_mode="layout")
                         if texto_pag_bruto:
-                            for linha in texto_pag_bruto.splitlines():
+                            for linha in texto_pag_bruto.splitlines()[1:-1]:
                                 linha_limpa = limpar_linha_profundo(linha)
+
+                                maior_numero_caracteres = max(maior_numero_caracteres, len(linha_limpa))
+
+                                if maior_numero_caracteres>500:
+                                    faz_qualquer_coisa = 1
+
                                 # Mantemos o critério de tamanho mínimo de 10 caracteres
                                 if len(linha_limpa) >= 10:
                                     contagem_linhas_documento[linha_limpa] = contagem_linhas_documento.get(linha_limpa, 0) + 1
@@ -128,7 +236,7 @@ class ExtracaoService:
                         if texto_pag:
                             # Filtra as linhas repetidas (lixo) desta página ANTES da unificação
                             linhas_pagina_filtradas = []
-                            for linha in texto_pag.splitlines():
+                            for linha in texto_pag.splitlines()[1:-1]:
                                 if limpar_linha_profundo(linha) in linhas_lixo_documento:
                                     continue # Ignora/Remove a linha repetida (cabeçalho, rodapé, etc.)
                                 
@@ -136,9 +244,11 @@ class ExtracaoService:
                             
                             # Reconstroi o texto da página limpo para a unificação de colunas
                             texto_pag_limpo = "\n".join(linhas_pagina_filtradas)
+
+                            metade_pagina = maior_numero_caracteres / 2
                             
                             # Agora sim, unifica com o layout livre de interferências de cabeçalho/rodapé
-                            texto_completo_prova += ExtracaoService.unificar_colunas(texto_pag_limpo)
+                            texto_completo_prova += ExtracaoService.unificar_colunas(texto_pag_limpo, metade_pagina)
 
                 texto_acumulado_final += texto_completo_prova
                 arquivos_processados += 1
@@ -172,7 +282,10 @@ class ExtracaoService:
         ExtracaoService.extrair_materia(caminho_salvamento_txt, materia,callback_interface)            
 
     @staticmethod
-    def unificar_colunas(texto_pagina):
+    def unificar_colunas(texto_pagina, metade_pagina):
+
+        #Metade da página com uma margem de segurança (-5)
+        divisao_coluna = metade_pagina - 5
 
         coluna_esquerda = ""
         coluna_direita =  ""
@@ -183,7 +296,7 @@ class ExtracaoService:
 
         for linha in linhas:
 
-            inicia_deslocada = bool(re.match(r'^ {30,}', linha))
+            inicia_deslocada = bool(re.match(f'^ {{{{ {divisao_coluna},}}}}', linha))
 
             # Linha limpa nas pontas para a análise de intervalos internos
             linha_limpa = linha.strip()
@@ -217,152 +330,272 @@ class ExtracaoService:
                     coluna_esquerda += linha_limpa + "\n"
 
         return coluna_esquerda + "\n" + coluna_direita
-
+    
     @staticmethod
-    def extrair_questoes_json(caminho_txt, caminho_json_saida):
+    def extrair_materia(caminho_txt_consolidado, materia_inicial, callback_interface):
+
+        """
+        Lê o arquivo de texto consolidado, localiza TODOS os blocos de texto associados 
+        à materia_inicial (várias provas), concatena-os em ordem e gera um arquivo texto final único.
+        """
         import os
         import re
-        import json
 
-        if not os.path.exists(caminho_txt):
-            print("Arquivo de origem não encontrado.")
+        if not os.path.exists(caminho_txt_consolidado):
+            callback_interface("Arquivo consolidado não encontrado.", 1.0, f"❌ Erro: {caminho_txt_consolidado} não existe.\n")
             return
 
-        with open(caminho_txt, "r", encoding="utf-8") as f:
+        callback_interface(f"Analisando documento em busca de blocos de '{materia_inicial}'...", 0.1, "Iniciando varredura multimapas...\n")
+
+        # Lista de possíveis matérias finais para servir de limite/corte (Estrito Case Sensitive)
+        lista_materias_possiveis = [
+            "Língua Portuguesa", "Língua Portuguesa",
+            "Legislação", "Legislação",
+            "Raciocínio Lógico", "Raciocínio Lógico",
+            "Informática", "Informática",
+            "Analista de Tecnologia", "Analista de Tecnologia",
+            "Direito", "Direito",
+            "Conhecimentos Específicos", "Conhecimentos Específicos",
+            "Matemática", "Matemática",
+            "Língua Inglesa", "Língua Inglesa",
+            "História", "História",
+            "Geografia","Geografia"
+        ]
+
+        try:
+            # 1. Carrega o conteúdo completo do TXT consolidado
+            with open(caminho_txt_consolidado, "r", encoding="utf-8") as f:
+                texto_completo = f.read()
+
+            # Padrão para identificar o início da matéria (Exige linha isolada)
+            termo_inicio_esc = re.escape(materia_inicial)
+            padrao_inicio = fr"^\s*{termo_inicio_esc}\s*$"
+            
+            # Encontra todas as ocorrências de início da matéria ao longo do arquivo completo
+            matches_inicio = list(re.finditer(padrao_inicio, texto_completo, re.MULTILINE))
+            
+            if not matches_inicio:
+                callback_interface(f"Matéria '{materia_inicial}' não encontrada.", 1.0, f"⚠️ Aviso: Nenhuma ocorrência de '{materia_inicial}' foi localizada.\n")
+                return
+
+            # Constrói a Regex de corte com o limite de no máximo 1 palavra complementar
+            materias_corte = [m for m in lista_materias_possiveis if m.lower() != materia_inicial.lower()]
+            padrao_fim = r"^\s*(" + "|".join([re.escape(m) for m in materias_corte]) + r")(?:\s+[^\s]+)?\s*$"
+
+            texto_acumulado_materia = ""
+            total_blocos = len(matches_inicio)
+            
+            callback_interface(None, 0.3, f"🔍 Encontrado(s) {total_blocos} bloco(s) de '{materia_inicial}'. Isolando conteúdos...\n")
+
+            # 2. Varre cada uma das ocorrências encontradas
+            for idx, match_atual in enumerate(matches_inicio):
+                ponto_inicio_conteudo = match_atual.end()
+                
+                # O escopo de busca vai desde o fim do título atual até o início do próximo bloco da mesma matéria (se houver)
+                if idx + 1 < total_blocos:
+                    ponto_limite_busca = matches_inicio[idx + 1].start()
+                    sub_texto_busca = texto_completo[ponto_inicio_conteudo:ponto_limite_busca]
+                else:
+                    sub_texto_busca = texto_completo[ponto_inicio_conteudo:]
+
+                # 3. Procura o marcador de término (outra matéria) dentro deste pedaço isolado
+                fim_match = re.search(padrao_fim, sub_texto_busca, re.MULTILINE)
+                
+                if fim_match:
+                    # Se achou outra matéria, corta o texto logo antes dela começar
+                    bloco_isolado = sub_texto_busca[:fim_match.start()]
+                else:
+                    # Se não achou outra matéria (ex: fim do arquivo ou redação limpa), pega o sub_texto inteiro
+                    bloco_isolado = sub_texto_busca
+
+                # Adiciona o bloco limpo ao acumulador da matéria correspondente
+                texto_acumulado_materia += bloco_isolado.strip() + "\n\n"
+
+            # --- SANITIZAÇÃO GERAL DE QUEBRAS DE LINHA SOBRANTES ---
+            texto_final_limpo = re.sub(r'(\n\s*){3,}', '\n\n', texto_acumulado_materia).strip()
+
+            if not texto_final_limpo:
+                callback_interface("Conteúdo vazio.", 1.0, f"⚠️ Nenhum conteúdo útil foi extraído dos {total_blocos} blocos.\n")
+                return
+
+            # 4. Gravação do arquivo texto final específico desta matéria
+            pasta_origem = os.path.dirname(caminho_txt_consolidado)
+            nome_materia_limpo = materia_inicial.replace(' ', '_').lower()
+            nome_arquivo_txt = f"extracao_final_{nome_materia_limpo}.txt"
+            caminho_salvamento_txt = os.path.join(pasta_origem, nome_arquivo_txt)
+            
+            with open(caminho_salvamento_txt, "w", encoding="utf-8") as f_txt:
+                f_txt.write(texto_final_limpo)
+            
+            callback_interface(
+                "Extração Multi-Bloco Concluída!", 
+                1.0, 
+                f"\n=== EXTRAÇÃO FINALIZADA ===\nConsolidados {total_blocos} bloco(s) de '{materia_inicial}' com sucesso!\n➡️ Gerado em: {caminho_salvamento_txt}\n"
+            )
+
+        except Exception as ex:
+            callback_interface("Erro na extração.", 1.0, f"❌ Falha crítica ao isolar múltiplos blocos: {str(ex)}\n")
+
+    @staticmethod
+    def extrair_questoes_json(caminho_arquivo,arquivo_json_saida):
+
+        def salvar_questao(lista_dados, enunciado_linhas, dicionario_alts, texto_ref):
+            """Função auxiliar para organizar e formatar a questão antes de salvar"""
+            enunciado_limpo = " ".join(enunciado_linhas).strip()
+
+            # Garante que todas as 5 alternativas existam no JSON, mesmo que o arquivo falhe em alguma
+            letras_validas = ["A", "B", "C", "D", "E"]
+            lista_respostas = []
+
+            for letra in letras_validas:
+                texto_alternativa = dicionario_alts.get(letra, "").strip()
+                lista_respostas.append(
+                    {
+                        "texto": f"Alternativa {letra}"
+                        if not texto_alternativa
+                        else texto_alternativa,
+                        "eh_correta": 0,  # Fixo como 0 conforme especificado no layout
+                    }
+                )
+
+            lista_dados.append(
+                {
+                    "enunciado": enunciado_limpo,
+                    "texto_referencia": texto_ref.strip(),
+                    "respostas": lista_respostas,
+                }
+            )
+
+        with open(caminho_arquivo, "r", encoding="utf-8") as f:
             conteudo = f.read()
 
-        lista_dados_questoes = []
+        # Remover marcações de fontes específicas que possam vir no texto (ex: )
+        conteudo = re.sub(r"\\","",conteudo)
 
-        # 1. Separa o arquivo por blocos de fontes/páginas para processamento estruturado
-        blocos_fontes = conteudo.split("================================================================================")
-        
-        for bloco_fonte in blocos_fontes:
-            if not bloco_fonte.strip() or "FONTE:" in bloco_fonte:
+        # Dividir o conteúdo em linhas limpas
+        linhas = [linha.strip() for linha in conteudo.split("\n")]
+
+        dados_questoes = []
+
+        # Variáveis de controle de estado
+        texto_referencia_atual = ""
+        capturando_texto_referencia = False
+        buffer_texto_referencia = []
+
+        enunciado_atual = []
+        alternativas_atuais = {}
+        questao_em_andamento = False
+
+        # Regex para identificar início de questão (Número isolado ou no início da linha)
+        regex_numero_questao = re.compile(r"^(\d+)$")
+        # Regex para identificar alternativas (A), (B), etc.
+        regex_alternativa = re.compile(r"^\(([A-Ea-e])\)\s*(.*)$")
+        # Regex para avisos de texto de referência
+        regex_aviso_texto = re.compile(
+            r"Atenção:\s*o\s*texto\s*a\s*seguir\s*refere-se", re.IGNORECASE
+        )
+
+        for linha in linhas:
+            if not linha:
                 continue
 
-            # --- LINHA POR LINHA: SEPARAÇÃO REAL DE COLUNAS VIRTUAIS ---
-            linhas = bloco_fonte.split("\n")
-            linhas_coluna_esquerda = []
-            linhas_coluna_direita = []
+            # 1. Identifica se começou um novo bloco de texto de referência
+            if regex_aviso_texto.search(linha):
+                # Se havia uma questão anterior sendo processada, salva ela antes de mudar o texto
+                if questao_em_andamento and enunciado_atual and alternativas_atuais:
+                    salvar_questao(
+                        dados_questoes,
+                        enunciado_atual,
+                        alternativas_atuais,
+                        texto_referencia_atual,
+                    )
+                    enunciado_atual, alternativas_atuais = [], {}
+                    questao_em_andamento = False
 
-            for linha in linhas:
-                # Usa o método existente no seu ExtracaoService para quebrar a linha física em duas partes
-                #esq, direi = ExtracaoService.separar_colunas_se_houver(linha)
-                
-                # Limpeza imediata de ruídos estruturais do PDF de forma isolada nas colunas
-                for termo_ruido in ["", "FGV Projetos", "Tipo 1", "Tipo 2", "Tipo 3", "Tipo 4", "Tipo Branca", "Tipo Verde", "Tipo Amarela", "Tipo Azul"]:
-                    if termo_ruido.lower() in esq.lower():
-                        esq = ""
-                    if direi and termo_ruido.lower() in direi.lower():
-                        direi = ""
-
-                if esq.strip():
-                    linhas_coluna_esquerda.append(esq.rstrip())
-                if direi and direi.strip():
-                    linhas_coluna_direita.append(direi.rstrip())
-
-            # Reconstrói o texto do bloco: Garante que TODA a coluna da esquerda venha ANTES da coluna da direita
-            texto_linearizado = "\n".join(linhas_coluna_esquerda) + "\n" + "\n".join(linhas_coluna_direita)
-
-            # 2. Agora que o texto está linearizado, os números das questões estão REALMENTE isolados em suas próprias linhas
-            padrao_divisao = r"\n\s*([1-9][0-9]?)\s*\n"
-            partes = re.split(padrao_divisao, texto_linearizado)
-            
-            if len(partes) < 2:
+                capturando_texto_referencia = True
+                buffer_texto_referencia = [linha]
                 continue
 
-            # O fragmento inicial que antecede a primeira questão da página é o Texto de Referência padrão
-            texto_contexto_atual = partes[0].strip()
-            # Remove linhas puramente numéricas que possam ter sobrado no topo
-            texto_contexto_atual = "\n".join([l for l in texto_contexto_atual.split("\n") if not l.strip().isdigit()])
+            # 2. Identifica se é o número de uma nova questão
+            match_numero = regex_numero_questao.match(linha)
+            if match_numero:
+                # Se já havia uma questão engatilhada, salva ela primeiro
+                if questao_em_andamento and enunciado_atual and alternativas_atuais:
+                    salvar_questao(
+                        dados_questoes,
+                        enunciado_atual,
+                        alternativas_atuais,
+                        texto_referencia_atual,
+                    )
+                    enunciado_atual, alternativas_atuais = [], {}
 
-            # Percorre os fragmentos de 2 em 2 (Índice Ímpar = Número da Questão, Índice Par = Conteúdo da Questão)
-            for idx in range(1, len(partes), 2):
-                num_questao = partes[idx].strip()
-                corpo_bloco = partes[idx+1] if idx+1 < len(partes) else ""
-                
-                if not corpo_bloco.strip():
+                # Se estávamos guardando um texto de referência, ele termina onde a questão começa
+                if capturando_texto_referencia:
+                    texto_referencia_atual = "\n".join(buffer_texto_referencia)
+                    capturando_texto_referencia = False
+                    buffer_texto_referencia = []
+
+                questao_em_andamento = True
+                continue
+
+            # 3. Identifica se é uma alternativa (A), (B), (C), (D), (E)
+            match_alt = regex_alternativa.match(linha)
+            if match_alt and questao_em_andamento:
+                letra = match_alt.group(1).upper()
+                texto_alt = match_alt.group(2)
+                alternativas_atuais[letra] = texto_alt
+                capturando_texto_referencia = False
+                continue
+
+            # 4. Acoplamento de textos contínuos (Enunciados, Alternativas multilíngues ou Textos)
+            if capturando_texto_referencia:
+                # Ignora cabeçalhos de bancas soltos no meio do texto (ex: FGV) para não poluir
+                if linha.strip() in [
+                    "FGV",
+                    "(FREIRE, 1998)",
+                    "SECRETARIA DE ESTADO DE ADMINISTRAÇÃO (PEDAGOGO)",
+                ]:
                     continue
-
-                # 3. Captura e isola as alternativas (A) até (E) de forma sequencial dentro do bloco limpo
-                padrao_alternativas = r"(\([A-E]\))"
-                fragmentos_alternativas = re.split(padrao_alternativas, corpo_bloco)
-                
-                # REGRA: O que vem antes da alternativa (A) é estritamente o Enunciado
-                enunciado_cru = fragmentos_alternativas[0].strip()
-                
-                # Remove o número da questão se ele tiver persistido grudado no início do enunciado
-                enunciado_limpo = re.sub(rf"^{num_questao}\s*", "", enunciado_cru).strip()
-                enunciado_limpo = re.sub(r'\s+', ' ', enunciado_limpo).strip()
-                
-                lista_respostas = []
-                
-                # REGRA: Processa as alternativas de (A) a (E) descartando os marcadores textuais solicitados
-                for j in range(1, len(fragmentos_alternativas), 2):
-                    letra_marcador = fragmentos_alternativas[j].strip()
-                    texto_alt = fragmentos_alternativas[j+1] if j+1 < len(fragmentos_alternativas) else ""
-                    
-                    # Evita vazamentos truncando caso detecte o início de outra alternativa ou bloco
-                    texto_alt = re.split(r"\s*\([A-E]\)", texto_alt)[0]
-                    texto_alt = re.split(r"\n\s*[1-9][0-9]?\s*\n", texto_alt)[0]
-                    
-                    # --- A TRAVA DE SEGURANÇA MÁXIMA NA ALTERNATIVA (E) ---
-                    if letra_marcador == "(E)":
-                        # Como o texto está linearizado, a alternativa (E) termina na sua própria quebra física.
-                        # Damos o split em '\n' e coletamos apenas a primeira linha legítima.
-                        linhas_alt_e = texto_alt.split("\n")
-                        texto_alt = linhas_alt_e[0] if len(linhas_alt_e) > 0 else ""
-
-                    # Limpa espaços excessivos e consolida o texto em uma linha limpa para o JSON
-                    texto_alt = re.sub(r'\s+', ' ', texto_alt).strip()
-                    
-                    if texto_alt:
-                        lista_respostas.append({
-                            "texto": texto_alt,  # A letra da alternativa ((A), (B)...) foi EXCLUÍDA aqui
-                            "eh_correta": 0
-                        })
-
-                # REGRA: Define o Texto de Referência com base no contexto que antecedeu o enunciado
-                texto_referencia_final = ""
-                # Se o enunciado fizer menção expressa a texto ou se o contexto acumulado for um texto real longo
-                if "texto" in enunciado_limpo.lower() or "conforme o autor" in enunciado_limpo.lower() or "no fragmento" in enunciado_limpo.lower():
-                    texto_referencia_final = texto_contexto_atual
+                buffer_texto_referencia.append(linha)
+            elif questao_em_andamento:
+                # Se já temos alternativas mapeadas, a linha atual é continuação da última alternativa capturada
+                if alternativas_atuais:
+                    ultima_letra = sorted(alternativas_atuais.keys())[-1]
+                    alternativas_atuais[ultima_letra] += " " + linha
                 else:
-                    # Só associa o texto de apoio se ele tiver tamanho relevante (evita associar fragmentos órfãos)
-                    texto_referencia_final = texto_contexto_atual if len(texto_contexto_atual) > 60 else ""
+                    # Se não tem alternativa ainda e não é texto de referência, faz parte do enunciado
+                    if linha.strip() not in [
+                        "FGV",
+                        "(FREIRE, 1998)",
+                        "SECRETARIA DE ESTADO DE ADMINISTRAÇÃO (PEDAGOGO)",
+                    ]:
+                        enunciado_atual.append(linha)
 
-                # Sanitização final do texto de referência para o layout JSON
-                if texto_referencia_final:
-                    texto_referencia_final = "\n".join([l for l in texto_referencia_final.split("\n") if not l.strip().isdigit()])
-                    texto_referencia_final = re.sub(r'\s+', ' ', texto_referencia_final).strip()
+        # Ao finalizar o loop, salva a última questão que restou no buffer
+        if questao_em_andamento and enunciado_atual and alternativas_atuais:
+            salvar_questao(
+                dados_questoes,
+                enunciado_atual,
+                alternativas_atuais,
+                texto_referencia_atual,
+            )
 
-                # Ignora quebras falsas detectadas pelo parser
-                if not enunciado_limpo or len(lista_respostas) < 2:
-                    continue
-
-                # Monta os dados da questão com a remoção total dos marcadores
-                questao_dados = {
-                    "enunciado": enunciado_limpo,  # O número da questão foi EXCLUÍDO aqui
-                    "texto_referencia": texto_referencia_final if texto_referencia_final else None,
-                    "respostas": lista_respostas
-                }
-                
-                lista_dados_questoes.append(questao_dados)
-
-        # 4. Estruturação do objeto JSON final de acordo com o padrão exigido
-        json_final_estruturado = {
+        # Monta a estrutura final requisitada
+        estrutura_final = {
             "entidade": "Questao",
-            "materia": "MATERIA IMPORTAÇÃO",
-            "ementa": "EMENTA IMPORTAÇÃO",
-            "dados": lista_dados_questoes
+            "materia": "MATÉRIA IMPORTADA",
+            "ementa": "EMENTA IMPORTADA",
+            "dados": dados_questoes,
         }
 
-        # Escrita física do JSON no disco
-        with open(caminho_json_saida, "w", encoding="utf-8") as f_json:
-            json.dump(json_final_estruturado, f_json, ensure_ascii=False, indent=4)
-            
-        print(f"Sucesso! {len(lista_dados_questoes)} questões estruturadas linha por linha e salvas em: {caminho_json_saida}")
-
+        # Converte para string JSON bem formatada (UTF-8)
+        #return json.dumps(estrutura_final, ensure_ascii=False, indent=2)
+        json_resultado = json.dumps(estrutura_final, ensure_ascii=False, indent=2)
+    
+        # Salva o resultado em um arquivo .json separado
+        with open(arquivo_json_saida, "w", encoding="utf-8") as f_out:
+            f_out.write(json_resultado)
+ 
     @staticmethod
     def limpa_repeticoes(texto, min_len=7, min_rep=3):
         """
@@ -403,95 +636,3 @@ class ExtracaoService:
             linhas_finais.append(linha)
 
         return "\n".join(linhas_finais)     
-
-    @staticmethod
-    def extrair_materia(caminho_txt_consolidado, materia_inicial, callback_interface):
-        """
-        Lê o arquivo de texto unificado/consolidado, identifica o bloco de texto 
-        entre a materia_inicial e a próxima matéria da lista de possíveis matérias da FGV,
-        isola o conteúdo e gera um arquivo texto final específico para a matéria informada.
-        """
-        import os
-        import re
-
-        if not os.path.exists(caminho_txt_consolidado):
-            callback_interface("Arquivo consolidado não encontrado.", 1.0, f"❌ Erro: {caminho_txt_consolidado} não existe.\n")
-            return
-
-        callback_interface(f"Lendo arquivo consolidado para extrair '{materia_inicial}'...", 0.1, "Iniciando busca por escopo...\n")
-
-        # Lista de possíveis matérias finais para servir de limite/corte (Strict Case Sensitive)
-        # Removidas as duplicatas da lista original
-
-        # Lista de possíveis matérias finais para servir de limite/corte (Estrito Case Sensitive)
-        lista_materias_possiveis = [
-            "Língua Portuguesa", "Língua Portuguesa",
-            "Legislação", "Legislação",
-            "Raciocínio Lógico", "Raciocínio Lógico",
-            "Informática", "Informática",
-            "Analista de Tecnologia", "Analista de Tecnologia",
-            "Direito", "Direito",
-            "Conhecimentos Específicos", "Conhecimentos Específicos",
-            "Matemática", "Matemática",
-            "Língua Inglesa", "Língua Inglesa",
-            "História", "História",
-            "Geografia","Geografia"
-        ]
-
-        try:
-            # 1. Carrega o conteúdo completo do TXT que já passou pelas limpezas e unificação
-            with open(caminho_txt_consolidado, "r", encoding="utf-8") as f:
-                texto_completo = f.read()
-
-            # 2. Encontra onde começa a matéria desejada (materia_inicial) - Strict Case
-            # Exige que a matéria esteja em uma linha própria (âncora ^), tolerando espaços/quebras
-            termo_inicio_esc = re.escape(materia_inicial)
-            inicio_match = re.search(fr"^\s*{termo_inicio_esc}\s*$", texto_completo, re.MULTILINE)
-            
-            if not inicio_match:
-                callback_interface(f"Matéria '{materia_inicial}' não encontrada.", 1.0, f"⚠️ Aviso: Matéria '{materia_inicial}' não foi localizada no texto.\n")
-                return
-
-            # Descarta tudo o que está antes do início da matéria informada
-            texto_escopo = texto_completo[inicio_match.end():].lstrip()
-            
-            # 3. Constrói dinamicamente a Regex de parada com as matérias que NÃO são a inicial
-            materias_corte = [m for m in lista_materias_possiveis if m != materia_inicial]
-            
-            # ALTERAÇÃO AQUI: Mudamos para aceitar no máximo 1 palavra complementar
-            # \s* -> espaços opcionais após o termo principal
-            # [^\s]+  -> obrigatoriamente uma palavra complementar (sem espaços internos)
-            # \s* -> espaços opcionais no final da linha antes da âncora $
-            padrao_fim = r"^\s*(" + "|".join([re.escape(m) for m in materias_corte]) + r")(?:\s+[^\s]+)?\s*$"
-            
-            # Execução estrita (MULTILINE para habilitar o ^ no início de linhas internas)
-            fim_match = re.search(padrao_fim, texto_escopo, re.MULTILINE)
-            
-            if fim_match:
-                # Corta o texto exatamente no ponto onde a nova linha da outra matéria começa
-                texto_escopo = texto_escopo[:fim_match.start()]
-
-            # --- SANITIZAÇÃO DE LINHAS EM BRANCO SOBRANTES ---
-            texto_escopo_limpo = re.sub(r'(\n\s*){3,}', '\n\n', texto_escopo).strip()
-
-            if not texto_escopo_limpo:
-                callback_interface("Escopo vazio.", 1.0, f"⚠️ Nenhum conteúdo útil localizado após o termo '{materia_inicial}'.\n")
-                return
-
-            # 4. Gravação do arquivo texto final específico desta matéria
-            pasta_origem = os.path.dirname(caminho_txt_consolidado)
-            nome_materia_limpo = materia_inicial.replace(' ', '_').lower()
-            nome_arquivo_txt = f"extracao_final_{nome_materia_limpo}.txt"
-            caminho_salvamento_txt = os.path.join(pasta_origem, nome_arquivo_txt)
-            
-            with open(caminho_salvamento_txt, "w", encoding="utf-8") as f_txt:
-                f_txt.write(texto_escopo_limpo)
-            
-            callback_interface(
-                "Extração da Matéria Concluída!", 
-                1.0, 
-                f"\n=== EXTRAÇÃO DE MATÉRIA FINALIZADA ===\nBloco de '{materia_inicial}' isolado com sucesso!\n➡️ Arquivo gerado em: {caminho_salvamento_txt}\n"
-            )
-
-        except Exception as ex:
-            callback_interface("Erro na extração.", 1.0, f"❌ Falha crítica ao isolar matéria: {str(ex)}\n")

@@ -64,7 +64,7 @@ class ViewExtracao(ctk.CTkFrame):
         self.btn_disparar_gemini.pack(fill="x", padx=20, pady=(10, 5))
         """
 
-        # Botão de Execução - Manual
+        # Botão de Execução - Extrair Texto/Matérias"
         self.btn_disparar_manual = ctk.CTkButton(
             self, text="Extrair Texto/Matérias", 
             fg_color="#2c3e50", hover_color="#34495e",
@@ -76,7 +76,7 @@ class ViewExtracao(ctk.CTkFrame):
         self.btn_extrair_json = ctk.CTkButton(
             self, text="Extrair JSON", 
             fg_color="#e67e22", hover_color="#d35400",
-            command=self._iniciar_conversao_json_thread
+            command=self._extrair_json_thread
         )
         self.btn_extrair_json.pack(fill="x", padx=20, pady=(5, 20))
 
@@ -117,7 +117,7 @@ class ViewExtracao(ctk.CTkFrame):
             daemon=True
         ).start()
 
-    def _iniciar_conversao_json_thread(self):
+    def _extrair_json_thread(self):
         """Abre caixa de diálogo para escolher o arquivo .txt gerado e roda a extração em JSON"""
         caminho_inicial = self.entry_pasta.get().strip()
         if not os.path.exists(caminho_inicial):
