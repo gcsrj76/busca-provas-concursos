@@ -520,165 +520,133 @@ class ExtracaoService:
             callback_interface("Erro na extração.", 1.0, f"❌ Falha crítica ao isolar múltiplos blocos: {str(ex)}\n")
 
     @staticmethod
-    def extrair_questoes_json(caminho_arquivo,arquivo_json_saida):
-
-        def salvar_questao(lista_dados, enunciado_linhas, dicionario_alts, texto_ref):
-            """Função auxiliar para organizar e formatar a questão antes de salvar"""
-            enunciado_limpo = " ".join(enunciado_linhas).strip()
-
-            # Garante que todas as 5 alternativas existam no JSON, mesmo que o arquivo falhe em alguma
-            letras_validas = ["A", "B", "C", "D", "E"]
-            lista_respostas = []
-
-            for letra in letras_validas:
-                texto_alternativa = dicionario_alts.get(letra, "").strip()
-                lista_respostas.append(
-                    {
-                        "texto": f"Alternativa {letra}"
-                        if not texto_alternativa
-                        else texto_alternativa,
-                        "eh_correta": 0,  # Fixo como 0 conforme especificado no layout
-                    }
-                )
-
-            lista_dados.append(
-                {
-                    "enunciado": enunciado_limpo,
-                    "texto_referencia": texto_ref.strip(),
-                    "respostas": lista_respostas,
-                }
-            )
-
+    def extrair_questoes_json(caminho_arquivo, arquivo_json_saida):
+        # Lendo o arquivo original de texto
         with open(caminho_arquivo, "r", encoding="utf-8") as f:
             conteudo = f.read()
 
-        # Remover marcações de fontes específicas que possam vir no texto (ex: )
-        conteudo = re.sub(r"\\","",conteudo)
-
-        # Dividir o conteúdo em linhas limpas
-        linhas = [linha.strip() for linha in conteudo.split("\n")]
+        # Dividir em linhas removendo espaços em branco extras nas extremidades
+        linhas = [linha.strip() for i, linha in enumerate(conteudo.split("\n"))]
 
         dados_questoes = []
+        total_linhas = len(linhas)
+        i = 0
 
-        # Variáveis de controle de estado
-        texto_referencia_atual = ""
-        capturando_texto_referencia = False
-        buffer_texto_referencia = []
+        while i < total_linhas:
+            # 1 - Identifica o início das respostas pela linha iniciada por "(A)"
+            if linhas[i].startswith("(A)"):
+                idx_A = i
 
-        enunciado_atual = []
-        alternativas_atuais = {}
-        questao_em_andamento = False
+                # Extração temporária das alternativas (A) até (E) para a variável local
+                respostas_temporarias = []
+                idx_busca_alts = idx_A
 
-        # Regex para identificar início de questão (Número isolado ou no início da linha)
-        regex_numero_questao = re.compile(r"^(\d+)$")
-        # Regex para identificar alternativas (A), (B), etc.
-        regex_alternativa = re.compile(r"^\(([A-Ea-e])\)\s*(.*)$")
-        # Regex para avisos de texto de referência
-        regex_aviso_texto = re.compile(
-            r"Atenção:\s*o\s*texto\s*a\s*seguir\s*refere-se", re.IGNORECASE
-        )
+                while idx_busca_alts < total_linhas:
+                    linha_alt = linhas[idx_busca_alts]
+                    match_alt = re.match(r"^\(([A-E])\)\s*(.*)", linha_alt)
 
-        for linha in linhas:
-            if not linha:
-                continue
+                    if match_alt:
+                        letra = match_alt.group(1)
+                        texto_alternativa = match_alt.group(2).strip()
 
-            # 1. Identifica se começou um novo bloco de texto de referência
-            if regex_aviso_texto.search(linha):
-                # Se havia uma questão anterior sendo processada, salva ela antes de mudar o texto
-                if questao_em_andamento and enunciado_atual and alternativas_atuais:
-                    salvar_questao(
-                        dados_questoes,
-                        enunciado_atual,
-                        alternativas_atuais,
-                        texto_referencia_atual,
+                        # Monta o objeto individual de cada alternativa
+                        respostas_temporarias.append(
+                            {
+                                "texto": f"({letra}) {texto_alternativa}".strip(),
+                                "eh_correta": 0,  # Fixo como 0 conforme o layout desejado
+                            }
+                        )
+
+                        # Quando localiza o término da estrutura em (E), para a busca de alternativas
+                        if letra == "E":
+                            break
+                    idx_busca_alts += 1
+
+                # 2 - A partir da letra "(A)" identificada (idx_A), verifica o conteúdo imediatamente anterior
+                idx_busca_enunciado = idx_A - 1
+                linhas_enunciado = []
+                idx_numero = -1
+
+                texto_restante_da_linha_do_numero = ""
+
+                while idx_busca_enunciado >= 0:
+                    linha_atual = linhas[idx_busca_enunciado]
+
+                    match_linha_iniciada_por_num = re.match(r"^(\d+)\s*(.*)$", linha_atual)
+
+                    # Localiza a linha que inicia com o número da questão (ex: "1", "10", etc.)
+                    if re.match(r"^\d+$", linha_atual):
+                        idx_numero = idx_busca_enunciado
+                        texto_restante_da_linha_do_numero = (
+                        match_linha_iniciada_por_num.group(2).strip()
                     )
-                    enunciado_atual, alternativas_atuais = [], {}
-                    questao_em_andamento = False
+                    break
 
-                capturando_texto_referencia = True
-                buffer_texto_referencia = [linha]
+                    # Insere no início para preservar a ordem correta de leitura
+                    linhas_enunciado.insert(0, linha_atual)
+                    idx_busca_enunciado -= 1
+
+                # Se a linha que disparou o início do enunciado continha texto ao lado do número,
+                # esse texto é incluído no início do enunciado (sem o número).
+                if texto_restante_da_linha_do_numero:
+                    linhas_enunciado.insert(0, texto_restante_da_linha_do_numero)                    
+
+                # Une as linhas do enunciado de forma limpa retirando espaçamentos nulos
+                enunciado_extraido = " ".join(
+                    [l for l in linhas_enunciado if l]
+                ).strip()
+
+                # 3 - A partir da linha identificada com o número do enunciado (idx_numero), verifica o conteúdo anterior
+                texto_referencia_extraido = ""
+
+                if idx_numero > 0:
+                    idx_busca_ref = idx_numero - 1
+                    linhas_ref = []
+
+                    # Se o conteúdo imediatamente anterior for uma linha começando com "(E)", não tem texto de referência
+                    if linhas[idx_busca_ref].startswith("(E)"):
+                        texto_referencia_extraido = ""
+                    else:
+                        # Se houver conteúdo anterior, considera até encontrar o "(E)" acima ou o início do arquivo
+                        while idx_busca_ref >= 0:
+                            linha_ref_atual = linhas[idx_busca_ref]
+                            if linha_ref_atual.startswith("(E)"):
+                                break
+                            linhas_ref.insert(0, linha_ref_atual)
+                            idx_busca_ref -= 1
+
+                        # Une o texto de referência respeitando as quebras de linha nativas
+                        texto_referencia_extraido = "\n".join(
+                            [l for l in linhas_ref if l]
+                        ).strip()
+
+                # Adiciona a questão processada à lista final de dados
+                dados_questoes.append(
+                    {
+                        "enunciado": enunciado_extraido,
+                        "texto_referencia": texto_referencia_extraido,
+                        "respostas": respostas_temporarias,
+                    }
+                )
+
+                # Avança o ponteiro principal para continuar a varredura após o bloco dessa questão
+                i = idx_busca_alts + 1
                 continue
 
-            # 2. Identifica se é o número de uma nova questão
-            match_numero = regex_numero_questao.match(linha)
-            if match_numero:
-                # Se já havia uma questão engatilhada, salva ela primeiro
-                if questao_em_andamento and enunciado_atual and alternativas_atuais:
-                    salvar_questao(
-                        dados_questoes,
-                        enunciado_atual,
-                        alternativas_atuais,
-                        texto_referencia_atual,
-                    )
-                    enunciado_atual, alternativas_atuais = [], {}
+            i += 1
 
-                # Se estávamos guardando um texto de referência, ele termina onde a questão começa
-                if capturando_texto_referencia:
-                    texto_referencia_atual = "\n".join(buffer_texto_referencia)
-                    capturando_texto_referencia = False
-                    buffer_texto_referencia = []
-
-                questao_em_andamento = True
-                continue
-
-            # 3. Identifica se é uma alternativa (A), (B), (C), (D), (E)
-            match_alt = regex_alternativa.match(linha)
-            if match_alt and questao_em_andamento:
-                letra = match_alt.group(1).upper()
-                texto_alt = match_alt.group(2)
-                alternativas_atuais[letra] = texto_alt
-                capturando_texto_referencia = False
-                continue
-
-            # 4. Acoplamento de textos contínuos (Enunciados, Alternativas multilíngues ou Textos)
-            if capturando_texto_referencia:
-                # Ignora cabeçalhos de bancas soltos no meio do texto (ex: FGV) para não poluir
-                if linha.strip() in [
-                    "FGV",
-                    "(FREIRE, 1998)",
-                    "SECRETARIA DE ESTADO DE ADMINISTRAÇÃO (PEDAGOGO)",
-                ]:
-                    continue
-                buffer_texto_referencia.append(linha)
-            elif questao_em_andamento:
-                # Se já temos alternativas mapeadas, a linha atual é continuação da última alternativa capturada
-                if alternativas_atuais:
-                    ultima_letra = sorted(alternativas_atuais.keys())[-1]
-                    alternativas_atuais[ultima_letra] += " " + linha
-                else:
-                    # Se não tem alternativa ainda e não é texto de referência, faz parte do enunciado
-                    if linha.strip() not in [
-                        "FGV",
-                        "(FREIRE, 1998)",
-                        "SECRETARIA DE ESTADO DE ADMINISTRAÇÃO (PEDAGOGO)",
-                    ]:
-                        enunciado_atual.append(linha)
-
-        # Ao finalizar o loop, salva a última questão que restou no buffer
-        if questao_em_andamento and enunciado_atual and alternativas_atuais:
-            salvar_questao(
-                dados_questoes,
-                enunciado_atual,
-                alternativas_atuais,
-                texto_referencia_atual,
-            )
-
-        # Monta a estrutura final requisitada
-        estrutura_final = {
+        # Formatação final do layout JSON completo exigido
+        layout_final = {
             "entidade": "Questao",
             "materia": "MATÉRIA IMPORTADA",
             "ementa": "EMENTA IMPORTADA",
             "dados": dados_questoes,
         }
 
-        # Converte para string JSON bem formatada (UTF-8)
-        #return json.dumps(estrutura_final, ensure_ascii=False, indent=2)
-        json_resultado = json.dumps(estrutura_final, ensure_ascii=False, indent=2)
-    
-        # Salva o resultado em um arquivo .json separado
+        # Gravação do arquivo .json estruturado no destino informado pelo parâmetro
         with open(arquivo_json_saida, "w", encoding="utf-8") as f_out:
-            f_out.write(json_resultado)
- 
+            json.dump(layout_final, f_out, ensure_ascii=False, indent=2)
+
     @staticmethod
     def limpa_repeticoes(texto, min_len=7, min_rep=3):
         """
