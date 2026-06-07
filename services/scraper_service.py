@@ -10,6 +10,7 @@ class ScraperService:
         url_concursos = f"{base_url}/concursos#tab-text-129-content"
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         novos_links = 0
+        contador_ordem = 0  # Controla a ordem global de inserção nesta rodada
 
         # Limpa o banco para uma nova rodada de coletas limpa
         ConcursoRepository.limpar_banco()
@@ -26,11 +27,11 @@ class ScraperService:
             # Calcula o progresso com base em quantas páginas deste bloco já foram lidas
             progresso = (indice_loop + 1) / total_paginas_intervalo
             callback_interface(f"Lendo página {pagina} de {fim}...", progresso)
+
+            pagina_api = pagina - 1
             
             try:
-                # Na paginação da FGV, a página 1 costuma ser mapeada como ?page=0 ou ?page=1 dependendo da sessão,
-                # mas passar o número exato da página funciona perfeitamente pelo parâmetro.
-                resposta = requests.get(url_concursos, params={"page": pagina}, headers=headers, timeout=10)
+                resposta = requests.get(url_concursos, params={"page": pagina_api}, headers=headers, timeout=10)
                 if resposta.status_code != 200:
                     callback_interface(None, None, f"⚠️ Falha ao acessar página {pagina} (Status: {resposta.status_code})\n")
                     continue
@@ -50,7 +51,17 @@ class ScraperService:
                             continue
                         
                         url_completa = base_url + href if href.startswith("/") else href
-                        foi_salvo = ConcursoRepository.salvar_link(url=url_completa, titulo=titulo)
+                        
+                        # Incrementa a ordem antes de salvar o registro corrente
+                        contador_ordem += 1
+                        
+                        # Enviando os novos parâmetros: ordem_coleta e pagina_coleta
+                        foi_salvo = ConcursoRepository.salvar_link(
+                            url=url_completa, 
+                            titulo=titulo,
+                            ordem_coleta=contador_ordem,
+                            pagina_coleta=pagina
+                        )
                         
                         msg = f"[NOVO] {titulo}\n🔗 {url_completa}\n\n" if foi_salvo else f"[JÁ EXISTE] {titulo}\n\n"
                         if foi_salvo: 

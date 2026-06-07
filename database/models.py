@@ -12,7 +12,7 @@ class ConcursoModel(Base):
     url = Column(String, unique=True, nullable=False, index=True)
     titulo = Column(String, nullable=True)
     ordem_coleta = Column(Integer, nullable=True)
-    coletado_em = Column(DateTime(timezone=True), server_default=func.now())
+    pagina_coleta = Column(Integer, nullable=True)
 
     arquivos = relationship(
         "ArquivoProvaModel", back_populates="concurso", cascade="all, delete"

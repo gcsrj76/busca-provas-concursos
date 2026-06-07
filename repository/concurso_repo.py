@@ -17,12 +17,17 @@ class ConcursoRepository:
             db.close()
 
     @staticmethod
-    def salvar_link(url: str, titulo: str = None) -> bool:
+    def salvar_link(url: str, titulo: str = None, ordem_coleta: int = None, pagina_coleta: int = None) -> bool:
         db = SessionLocal()
         try:
             existe = db.query(ConcursoModel).filter(ConcursoModel.url == url).first()
             if not existe:
-                novo_concurso = ConcursoModel(url=url, titulo=titulo)
+                novo_concurso = ConcursoModel(
+                    url=url, 
+                    titulo=titulo, 
+                    ordem_coleta=ordem_coleta, 
+                    pagina_coleta=pagina_coleta
+                )
                 db.add(novo_concurso)
                 db.commit()
                 return True
