@@ -552,7 +552,7 @@ class ExtracaoService:
                         # Monta o objeto individual de cada alternativa
                         respostas_temporarias.append(
                             {
-                                "texto": f"({letra}) {texto_alternativa}".strip(),
+                                "texto": texto_alternativa,
                                 "eh_correta": 0,  # Fixo como 0 conforme o layout desejado
                             }
                         )
@@ -566,7 +566,6 @@ class ExtracaoService:
                 idx_busca_enunciado = idx_A - 1
                 linhas_enunciado = []
                 idx_numero = -1
-
                 texto_restante_da_linha_do_numero = ""
 
                 while idx_busca_enunciado >= 0:
@@ -575,15 +574,15 @@ class ExtracaoService:
                     match_linha_iniciada_por_num = re.match(r"^(\d+)\s*(.*)$", linha_atual)
 
                     # Localiza a linha que inicia com o número da questão (ex: "1", "10", etc.)
-                    if re.match(r"^\d+$", linha_atual):
+                    if match_linha_iniciada_por_num:
                         idx_numero = idx_busca_enunciado
-                        texto_restante_da_linha_do_numero = (
-                        match_linha_iniciada_por_num.group(2).strip()
-                    )
-                    break
-
+                        texto_restante_da_linha_do_numero = match_linha_iniciada_por_num.group(2).strip()
+                        break
+                    
                     # Insere no início para preservar a ordem correta de leitura
-                    linhas_enunciado.insert(0, linha_atual)
+                    if linha_atual:
+                        linhas_enunciado.insert(0, linha_atual)
+
                     idx_busca_enunciado -= 1
 
                 # Se a linha que disparou o início do enunciado continha texto ao lado do número,
@@ -592,9 +591,7 @@ class ExtracaoService:
                     linhas_enunciado.insert(0, texto_restante_da_linha_do_numero)                    
 
                 # Une as linhas do enunciado de forma limpa retirando espaçamentos nulos
-                enunciado_extraido = " ".join(
-                    [l for l in linhas_enunciado if l]
-                ).strip()
+                enunciado_extraido = " ".join(linhas_enunciado).strip()
 
                 # 3 - A partir da linha identificada com o número do enunciado (idx_numero), verifica o conteúdo anterior
                 texto_referencia_extraido = ""
@@ -612,13 +609,14 @@ class ExtracaoService:
                             linha_ref_atual = linhas[idx_busca_ref]
                             if linha_ref_atual.startswith("(E)"):
                                 break
-                            linhas_ref.insert(0, linha_ref_atual)
+
+                            if linha_ref_atual:
+                                linhas_ref.insert(0, linha_ref_atual)                            
+
                             idx_busca_ref -= 1
 
                         # Une o texto de referência respeitando as quebras de linha nativas
-                        texto_referencia_extraido = "\n".join(
-                            [l for l in linhas_ref if l]
-                        ).strip()
+                        texto_referencia_extraido = "\n".join(linhas_ref).strip()
 
                 # Adiciona a questão processada à lista final de dados
                 dados_questoes.append(
