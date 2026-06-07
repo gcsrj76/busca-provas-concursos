@@ -8,7 +8,7 @@ class ViewBusca(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent, fg_color="transparent")
 
-        self.lbl_titulo = ctk.CTkLabel(self, text="🔍 Buscar Provas nos Concursos", font=("Arial", 18, "bold"))
+        self.lbl_titulo = ctk.CTkLabel(self, text="🔍 Buscar PDFs nos Concursos", font=("Arial", 18, "bold"))
         self.lbl_titulo.pack(pady=15)
 
         self.frame_info = ctk.CTkFrame(self)

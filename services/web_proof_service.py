@@ -41,69 +41,80 @@ class WebProofService:
                 if titulo_concurso:
                     titulo_concurso = titulo_concurso[0].upper() + titulo_concurso[1:]
 
-                # Localiza todos os blocos de itens/arquivos baseados na estrutura real do HTML (Drupal)
+                # Focamos estritamente nos blocos de arquivos do Drupal para evitar lixo e menus
                 blocos_publicacao = soup.select(".field--name-field-concurso-arquivos .field__item .paragraph--type--texto-data")
                 
-                # Fallback caso a estrutura mude ou venha de tabelas antigas
+                # Se a página não usar a estrutura de blocos nova, recorre ao contêiner geral (retrocompatibilidade)
                 if not blocos_publicacao:
-                    blocos_publicacao = soup.find_all("tr")
+                    conteudo_corpo = soup.select_one(".field--name-field-concurso-arquivos, .field--name-body")
+                    blocos_publicacao = conteudo_corpo.find_all("p") if conteudo_corpo else []
 
-                for bloco in blocos_publicacao:
-                    # Captura todo o texto estrutural do bloco para identificar se trata-se de Prova/Gabarito/Caderno
-                    texto_completo_bloco = " ".join(bloco.get_text(" ", strip=True).split())
+                # Variáveis de controle para rastreamento da árvore hierárquica
+                contexto_nivel1 = ""  # Ex: Prova Objetiva
+                contexto_nivel2 = ""  # Ex: Fiscal de Rendas - Manhã
+
+                for item_bloco in blocos_publicacao:
+                    # Garantimos que a varredura ocorra parágrafo por parágrafo de forma ordenada
+                    paragrafos = item_bloco.find_all("p") if item_bloco.name != "p" else [item_bloco]
                     
-                    # Filtro amplo: Processa o bloco se houver indício de provas, cadernos ou gabaritos
-                    if not any(termo in texto_completo_bloco.lower() for termo in ["prova", "gabarito", "caderno", "tipo"]):
-                        continue
+                    for p_tag in paragrafos:
+                        texto_linha = " ".join(p_tag.get_text(strip=True).split()).strip(" -:")
+                        if not texto_linha:
+                            continue
 
-                    # Extrai o texto limpo do parágrafo indicador (Hierarquia/Cargo/Turno)
-                    # Ele serve como o contexto que antecede os links de "Tipo X"
-                    paragrafo_texto = bloco.find("p")
-                    contexto_hierarquia = ""
-                    if paragrafo_texto:
-                        # Remove os textos dos links internos para pegar apenas o título mãe da linha
-                        clone_p = BeautifulSoup(str(paragrafo_texto), "lxml")
-                        for a_tag in clone_p.find_all("a"):
-                            a_tag.decompose()
-                        contexto_hierarquia = " ".join(clone_p.get_text(" ", strip=True).split()).strip(" -:")
+                        classes = p_tag.get("class", [])
+                        link_ancora = p_tag.find("a")
 
-                    # Se não achou texto no <p> purificado, usa o começo do bloco como cabeçalho explicativo
-                    if not contexto_hierarquia and texto_completo_bloco:
-                        contexto_hierarquia = texto_completo_bloco.split("Tipo")[0].strip(" -:")
+                        # CASO 1: É uma linha de cabeçalho estrutural (Não possui link)
+                        if not link_ancora:
+                            if "Indent1" in classes:
+                                contexto_nivel2 = texto_linha
+                            elif "Indent2" not in classes:
+                                contexto_nivel1 = texto_linha
+                                contexto_nivel2 = ""  # Reseta o subcontexto ao mudar o bloco principal
+                            continue
 
-                    # Encontra todos os links de download válidos dentro deste bloco específico
-                    links_do_bloco = bloco.find_all("a")
-                    for ancora in links_do_bloco:
-                        href_arq = ancora.get("href")
+                        # CASO 2: A linha atual possui um link válido
+                        href_arq = link_ancora.get("href")
                         if not href_arq or href_arq.startswith("#"):
                             continue
+
+                        txt_link = " ".join(link_ancora.get_text(strip=True).split()).strip(" -:")
                         
-                        txt_link = " ".join(ancora.get_text(strip=True).split())
-                        
-                        # Evita links institucionais ou de navegação comuns mapeados por engano
-                        if any(ignorar in txt_link.lower() for ignorar in ["inscrição", "página inicial", "voltar"]):
+                        # FILTRO DE SEGURANÇA CRÍTICO: Ignora links institucionais ou textos de instruções longos
+                        if len(txt_link) > 45 or any(ignorar in txt_link.lower() for ignorar in ["clique aqui", "página inicial", "voltar", "inscrição"]):
                             continue
+
+                        # Suporte a links na raiz que possuem texto descritivo próprio em vez de "Tipo X"
+                        if "Indent1" in classes and len(txt_link) > 12:
+                            contexto_nivel2 = txt_link
+                        elif "Indent2" not in classes and "Indent1" not in classes and len(txt_link) > 12:
+                            # Se for um link simples na raiz, limpa os contextos antigos para não herdar lixo anterior
+                            contexto_nivel1 = ""
+                            contexto_nivel2 = ""
 
                         encontrou_prova_neste_concurso = True
                         url_arq_completa = "https://conhecimento.fgv.br" + href_arq if href_arq.startswith("/") else href_arq
-                        
-                        # Construção precisa da árvore de nomes: [Concurso] - [Hierarquia/Turno/Cargo] - [Tipo/Link]
+
+                        # == CONSTRUÇÃO DA ÁRVORE DA DESCRIÇÃO ==
                         partes_nome = [titulo_concurso]
-                        
-                        if contexto_hierarquia and contexto_hierarquia.lower() != titulo_concurso.lower():
-                            partes_nome.append(contexto_hierarquia)
-                            
-                        if txt_link and txt_link.lower() != contexto_hierarquia.lower():
-                            # Se o link for apenas o número do Tipo, deixamos explícito para clareza
+
+                        if contexto_nivel1 and contexto_nivel1.lower() != titulo_concurso.lower():
+                            partes_nome.append(contexto_nivel1)
+
+                        if contexto_nivel2 and contexto_nivel2.lower() != contexto_nivel1.lower():
+                            partes_nome.append(contexto_nivel2)
+
+                        # Adiciona o texto do link se ele trouxer informação nova relevante (ex: Tipo 1)
+                        if txt_link and txt_link.lower() != contexto_nivel2.lower() and txt_link.lower() != contexto_nivel1.lower():
                             if txt_link.isdigit():
                                 partes_nome.append(f"Tipo {txt_link}")
                             else:
                                 partes_nome.append(txt_link)
 
-                        # Garante a união limpa sem termos duplicados adjacentes
                         descricao_completa = " - ".join(partes_nome)
-                        
-                        # Executa o salvamento na tabela 'arquivos' via relacionamento existente
+
+                        # Persistência no banco de dados utilizando a estrutura existente
                         foi_salvo = ConcursoRepository.salvar_arquivo_prova(concurso.id, descricao_completa, url_arq_completa)
 
                         if foi_salvo:
@@ -112,14 +123,14 @@ class WebProofService:
                         else:
                             total_provas_ja_existentes += 1
                             print_msg = f"📚 [HISTÓRICO BASE] {descricao_completa}\n\n"
-                        
+
                         callback_interface(None, None, print_msg)
-                            
+
                 if not encontrou_prova_neste_concurso:
                     concursos_sem_prova.append((concurso.titulo, concurso.url))
 
                 time.sleep(1.2)
-                
+
             except Exception as e:
                 concursos_sem_prova.append((concurso.titulo, concurso.url))
                 callback_interface(None, None, f"⚠️ Erro ao acessar {concurso.url}: {e}\n")

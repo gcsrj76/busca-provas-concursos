@@ -24,8 +24,8 @@ class ScraperApp(ctk.CTk):
         # Botões de controle de Abas
         self.criar_botao_menu("🏠 Início / Painel", lambda: self.mudar_tela("home"))
         self.criar_botao_menu("🚀 Coletar Dados", lambda: self.mudar_tela("coleta"))
-        self.criar_botao_menu("🔍 Buscar Provas", lambda: self.mudar_tela("busca"))
-        self.criar_botao_menu("📥 Baixar Provas", lambda: self.mudar_tela("download"))
+        self.criar_botao_menu("🔍 Buscar PDFs", lambda: self.mudar_tela("busca"))
+        self.criar_botao_menu("📥 Baixar PDFs", lambda: self.mudar_tela("download"))
         self.criar_botao_menu("⚙️ Processar PDFs", lambda: self.mudar_tela("processar"))
         # <--- 2. AJUSTE: Novo botão adicionado de forma independente no menu lateral
         self.criar_botao_menu("🤖 Extrair Questões", lambda: self.mudar_tela("extracao"))

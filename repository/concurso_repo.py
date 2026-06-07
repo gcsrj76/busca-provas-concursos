@@ -96,9 +96,29 @@ class ConcursoRepository:
 
     @staticmethod
     def obter_arquivos_pendentes():
-        """Retorna apenas os arquivos cujo status 'baixado' seja falso."""
+        """Retorna apenas os arquivos cujo status 'baixado' seja falso, trazendo o concurso associado."""
         session = SessionLocal()
         try:
-            return session.query(ArquivoProvaModel).filter(ArquivoProvaModel.baixado == False).all()
+            # AJUSTE CRÍTICO: Utiliza joinedload para embutir o concurso antes de fechar a sessão
+            return session.query(ArquivoProvaModel)\
+                .filter(ArquivoProvaModel.baixado == False)\
+                .options(joinedload(ArquivoProvaModel.concurso))\
+                .all()
         finally:
-            session.close()                     
+            session.close()
+
+    @staticmethod
+    def resetar_status_downloads():
+        """Define o campo 'baixado' como False para TODOS os registros da tabela arquivos_provas."""
+        db = SessionLocal()
+        try:
+            # Faz o update em lote mudando de True para False
+            db.query(ArquivoProvaModel).update({ArquivoProvaModel.baixado: False})
+            db.commit()
+            print("🔄 [BANCO] Todos os registros de arquivos foram resetados para pendentes (baixado = False).")
+        except Exception as e:
+            db.rollback()
+            print(f"⚠️ Erro ao resetar status de downloads: {e}")
+            raise e
+        finally:
+            db.close()                 

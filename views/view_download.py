@@ -90,13 +90,11 @@ class ViewDownload(ctk.CTkFrame):
     def disparar_download(self):
         pasta = self.txt_pasta.get().strip()
         if not pasta:
-            # CORREÇÃO: Removida a barra invertida dupla antes do 'n'
             self.txt_log.insert(tk.END, "⚠️ Indique uma pasta local primeiro.\n")
             return
 
         self.btn_download.configure(state="disabled")
         self.btn_pausa.configure(state="normal") # Ativa o botão de pausar
-        # CORREÇÃO: Removidas as barras invertidas de "1.0"
         self.txt_log.delete("1.0", tk.END)
         
         self.download_em_andamento = True
