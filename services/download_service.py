@@ -11,7 +11,7 @@ class DownloadService:
     def executar_downloads(pasta_destino, callback_interface, evento_pausa=None):
 
         #Utilizar apenas quando for necessário limpar marcações indevidas ou feitas em teste
-        ConcursoRepository.resetar_status_downloads()
+        #ConcursoRepository.resetar_status_downloads()
 
         if not os.path.exists(pasta_destino):
             os.makedirs(pasta_destino, exist_ok=True)

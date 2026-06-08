@@ -4,7 +4,7 @@ from typing import List, Optional, Literal
 from pydantic import BaseModel, Field
 
 from database.connection import SessionLocal
-from database.models import QuestaoSimuladoModel
+#from database.models import QuestaoSimuladoModel
 from google import genai
 from google.genai import types
 

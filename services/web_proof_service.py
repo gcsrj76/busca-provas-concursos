@@ -44,18 +44,20 @@ class WebProofService:
                 # Focamos estritamente nos blocos de arquivos do Drupal para evitar lixo e menus
                 blocos_publicacao = soup.select(".field--name-field-concurso-arquivos .field__item .paragraph--type--texto-data")
                 
-                # Se a página não usar a estrutura de blocos nova, recorre ao contêiner geral (retrocompatibilidade)
                 if not blocos_publicacao:
                     conteudo_corpo = soup.select_one(".field--name-field-concurso-arquivos, .field--name-body")
-                    blocos_publicacao = conteudo_corpo.find_all("p") if conteudo_corpo else []
+                    # Captura tanto os parágrafos normais quanto células de tabelas antigas (TCE-SE)
+                    if conteudo_corpo:
+                        blocos_publicacao = conteudo_corpo.find_all(["p", "td"])
+                    else:
+                        blocos_publicacao = []
 
                 # Variáveis de controle para rastreamento da árvore hierárquica
                 contexto_nivel1 = ""  # Ex: Prova Objetiva
                 contexto_nivel2 = ""  # Ex: Fiscal de Rendas - Manhã
 
                 for item_bloco in blocos_publicacao:
-                    # Garantimos que a varredura ocorra parágrafo por parágrafo de forma ordenada
-                    paragrafos = item_bloco.find_all("p") if item_bloco.name != "p" else [item_bloco]
+                    paragrafos = item_bloco.find_all("p") if item_bloco.name not in ["p", "td"] else [item_bloco]
                     
                     for p_tag in paragrafos:
                         texto_linha = " ".join(p_tag.get_text(strip=True).split()).strip(" -:")
@@ -74,24 +76,31 @@ class WebProofService:
                                 contexto_nivel2 = ""  # Reseta o subcontexto ao mudar o bloco principal
                             continue
 
-                        # CASO 2: A linha atual possui um link válido
+                        # CASO 2: A linha atual possui um link
                         href_arq = link_ancora.get("href")
                         if not href_arq or href_arq.startswith("#"):
                             continue
 
-                        txt_link = " ".join(link_ancora.get_text(strip=True).split()).strip(" -:")
-                        
-                        # FILTRO DE SEGURANÇA CRÍTICO: Ignora links institucionais ou textos de instruções longos
-                        if len(txt_link) > 45 or any(ignorar in txt_link.lower() for ignorar in ["clique aqui", "página inicial", "voltar", "inscrição"]):
+                        # REQUISITO ESTRITO: Validar se o link é de fato um arquivo válido
+                        href_lower = href_arq.lower()
+                        if "login.aspx" in href_lower or "form.aspx" in href_lower:
+                            continue
+                            
+                        if not (href_lower.endswith('.pdf') or '.pdf?' in href_lower or 'sites/default/files' in href_lower):
                             continue
 
-                        # Suporte a links na raiz que possuem texto descritivo próprio em vez de "Tipo X"
-                        if "Indent1" in classes and len(txt_link) > 12:
-                            contexto_nivel2 = txt_link
-                        elif "Indent2" not in classes and "Indent1" not in classes and len(txt_link) > 12:
-                            # Se for um link simples na raiz, limpa os contextos antigos para não herdar lixo anterior
+                        txt_link = " ".join(link_ancora.get_text(strip=True).split()).strip(" -:")
+                        
+                        # CORREÇÃO CRÍTICA: Aumentado o limite de 45 para 100 para não amputar descrições longas em tabelas
+                        if len(txt_link) > 100 or any(ignorar in txt_link.lower() for ignorar in ["clique aqui", "página inicial", "voltar", "inscrição", "inscreva-se"]):
+                            continue
+
+                        # CORREÇÃO DA MEMÓRIA: Se a linha está na raiz, limpa os contextos de árvore
+                        if "Indent1" not in classes and "Indent2" not in classes:
                             contexto_nivel1 = ""
                             contexto_nivel2 = ""
+                        elif "Indent1" in classes and len(txt_link) > 12:
+                            contexto_nivel2 = txt_link
 
                         encontrou_prova_neste_concurso = True
                         url_arq_completa = "https://conhecimento.fgv.br" + href_arq if href_arq.startswith("/") else href_arq
@@ -99,13 +108,16 @@ class WebProofService:
                         # == CONSTRUÇÃO DA ÁRVORE DA DESCRIÇÃO ==
                         partes_nome = [titulo_concurso]
 
+                        # Só adiciona o contexto_nivel1 se o texto do próprio link já não contiver a palavra descrita nele
                         if contexto_nivel1 and contexto_nivel1.lower() != titulo_concurso.lower():
-                            partes_nome.append(contexto_nivel1)
+                            if contexto_nivel1.lower() not in txt_link.lower():
+                                partes_nome.append(contexto_nivel1)
 
                         if contexto_nivel2 and contexto_nivel2.lower() != contexto_nivel1.lower():
-                            partes_nome.append(contexto_nivel2)
+                            if contexto_nivel2.lower() not in txt_link.lower():
+                                partes_nome.append(contexto_nivel2)
 
-                        # Adiciona o texto do link se ele trouxer informação nova relevante (ex: Tipo 1)
+                        # Adiciona o texto do link se ele trouxer informação nova relevante
                         if txt_link and txt_link.lower() != contexto_nivel2.lower() and txt_link.lower() != contexto_nivel1.lower():
                             if txt_link.isdigit():
                                 partes_nome.append(f"Tipo {txt_link}")
@@ -114,7 +126,7 @@ class WebProofService:
 
                         descricao_completa = " - ".join(partes_nome)
 
-                        # Persistência no banco de dados utilizando a estrutura existente
+                        # Persistência no banco de dados
                         foi_salvo = ConcursoRepository.salvar_arquivo_prova(concurso.id, descricao_completa, url_arq_completa)
 
                         if foi_salvo:

@@ -30,6 +30,7 @@ class ArquivoProvaModel(Base):
 
     concurso = relationship("ConcursoModel", back_populates="arquivos")
 
+"""
 class QuestaoSimuladoModel(Base):
     __tablename__ = "questoes_simulado"
     
@@ -47,3 +48,4 @@ class QuestaoSimuladoModel(Base):
 
     # Relacionamento com a tabela de arquivos de provas já existente
     prova = relationship("ArquivoProvaModel")    
+"""
