@@ -1,22 +1,26 @@
 import os
 import time
 import requests
+import io
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
+from pypdf import PdfReader
 from repository.concurso_repo import ConcursoRepository
+
+
+
 
 class DownloadService:
     @staticmethod
     def executar_downloads(pasta_destino, callback_interface, evento_pausa=None):
 
-        #Utilizar apenas quando for necessário limpar marcações indevidas ou feitas em teste
-        #ConcursoRepository.resetar_status_downloads()
+        # Utilizar apenas quando for necessário limpar marcações indevidas ou feitas em teste
+        # ConcursoRepository.resetar_status_downloads()
 
         if not os.path.exists(pasta_destino):
             os.makedirs(pasta_destino, exist_ok=True)
 
-        # Busca no repositório apenas os registros com status pendente (carregados via joinedload)
+        # Busca no repositório apenas os registros com status pendente
         arquivos_para_baixar = ConcursoRepository.obter_arquivos_pendentes()
 
         total_arquivos = len(arquivos_para_baixar)
@@ -39,56 +43,106 @@ class DownloadService:
             desc_lower = arq.descricao.lower()
             subpasta_nome = ""
 
-            # 1. Verificação Sequencial da Hierarquia de Categorias
+            # 1. Verificação Sequencial por Nome (Hierarquia Padrão)
             if "edital" in desc_lower:
                 subpasta_nome = "Edital"
             elif "gabarito" in desc_lower:
                 subpasta_nome = "Gabarito"
             elif "prova" in desc_lower:
                 subpasta_nome = "Prova"
-            else:
-                # Se não contiver nenhum dos 3 termos descritos, o arquivo é ignorado
-                ignorados += 1
-                continue
-
-            # Cria a subpasta correspondente (Edital, Gabarito ou Prova) caso ela não exista
-            caminho_subpasta = os.path.join(pasta_destino, subpasta_nome)
-            if not os.path.exists(caminho_subpasta):
-                os.makedirs(caminho_subpasta, exist_ok=True)
-
-            # 2. Composição do Nome do Arquivo utilizando o Concurso Pai
-            concurso_pai = getattr(arq, 'concurso', None)
             
-            # Utiliza os campos mapeados no repositório: pagina_coleta e ordem_coleta
+            # 2. Se não bateu pelo nome, faz download preventivo para analisar o conteúdo do PDF
+            if not subpasta_nome:
+                try:
+                    resposta_analise = requests.get(
+                        arq.url_arquivo, 
+                        headers=headers, 
+                        timeout=15, 
+                        verify=False, 
+                        allow_redirects=True
+                    )
+                    
+                    if resposta_analise.status_code == 200:
+                        # Abre o PDF diretamente da memória (Bytes)
+                        pdf_em_memoria = io.BytesIO(resposta_analise.content)
+                        leitor_pdf = PdfReader(pdf_em_memoria)
+                        
+                        # Garante que o PDF possui páginas antes de inspecionar
+                        if len(leitor_pdf.pages) > 0:
+                            primeira_pagina = leitor_pdf.pages[0]
+                            texto_primeira_pag = primeira_pagina.extract_text() or ""
+                            
+                            # --- SITUAÇÃO 1: TODOS os termos obrigatórios presentes ---
+                            termos_situacao_1 = ["SUA PROVA", "TEMPO", "NÃO SERÁ PERMITIDO", "INFORMAÇÕES GERAIS"]
+                            validou_situacao_1 = all(termo in texto_primeira_pag for termo in termos_situacao_1)
+                            
+                            # --- SITUAÇÃO 2: Pelo menos UM dos termos possíveis presente ---
+                            termos_situacao_2 = ["Informações Gerais", "Prova Escrita Objetiva", "Prova Escrita", "Prova Objetiva"]
+                            validou_situacao_2 = any(termo in texto_primeira_pag for termo in termos_situacao_2)
+                            
+                            if validou_situacao_1 or validou_situacao_2:
+                                subpasta_nome = "Prova"
+                                
+                                # Como já temos o conteúdo baixado com sucesso, vamos reaproveitá-lo 
+                                # salvando diretamente no fluxo atual para economizar banda e tempo.
+                                conteudo_pdf_validado = resposta_analise.content
+                            else:
+                                ignorados += 1
+                                continue
+                        else:
+                            ignorados += 1
+                            continue
+                    else:
+                        callback_interface(None, None, f"❌ [FALHA NA ANÁLISE - STATUS {resposta_analise.status_code}] {arq.descricao}\n")
+                        continue
+                except Exception as erro_pdf:
+                    callback_interface(None, None, f"⚠️ [ERRO AO ANALISAR PDF] {arq.descricao}: {erro_pdf}\n")
+                    continue
+            else:
+                # Se caiu aqui, o arquivo foi identificado previamente pelo nome. 
+                # Definimos a variável como None para que o script faça o download normal no bloco 4.
+                conteudo_pdf_validado = None
+
+            # 3. Composição do Nome do Arquivo utilizando o Concurso Pai
+            concurso_pai = getattr(arq, 'concurso', None)
             num_pagina = concurso_pai.pagina_coleta if concurso_pai else 0
             num_ordem = concurso_pai.ordem_coleta if concurso_pai else 0
 
             nome_limpo = "".join([c for c in arq.descricao if c.isalnum() or c in (" ", "-", "_")]).rstrip()
-            
-            # Formatação solicitada: página (2 dígitos) + ordem (4 dígitos) + descrição + .pdf
             nome_arquivo = f"{num_pagina:02d}{num_ordem:04d} - {nome_limpo}.pdf"
-            caminho_completo = os.path.join(caminho_subpasta, nome_arquivo)
+            caminho_completo = os.path.join(pasta_destino, subpasta_nome, nome_arquivo)
             
-            # 3. Execução estável do Download
+            # Garante que a subpasta alvo existe
+            os.makedirs(os.path.dirname(caminho_completo), exist_ok=True)
+            
+            # 4. Execução/Escrita do Download
             try:
-                resposta = requests.get(
-                    arq.url_arquivo, 
-                    headers=headers, 
-                    timeout=15, 
-                    verify=False, 
-                    allow_redirects=True
-                )
-                
-                if resposta.status_code == 200:
+                # Se o arquivo foi validado por análise interna, o conteúdo já está na memória
+                if conteudo_pdf_validado is not None:
                     with open(caminho_completo, "wb") as f:
-                        f.write(resposta.content)
-                    
-                    # Registra o sucesso na tabela de arquivos_provas marcando como baixado
+                        f.write(conteudo_pdf_validado)
                     ConcursoRepository.atualizar_status_download(arq.id, True)
-                    callback_interface(None, None, f"📥 [{subpasta_nome.upper()}] {nome_arquivo}\n")
+                    callback_interface(None, None, f"📥 [{subpasta_nome.upper()} - VIA CONTEÚDO] {nome_arquivo}\n")
                     baixados += 1
                 else:
-                    callback_interface(None, None, f"❌ [ERRO {resposta.status_code}] {nome_arquivo}\n")
+                    # Download tradicional (Edital, Gabarito ou Prova identificados pelo nome)
+                    resposta = requests.get(
+                        arq.url_arquivo, 
+                        headers=headers, 
+                        timeout=15, 
+                        verify=False, 
+                        allow_redirects=True
+                    )
+                    
+                    if resposta.status_code == 200:
+                        with open(caminho_completo, "wb") as f:
+                            f.write(resposta.content)
+                        
+                        ConcursoRepository.atualizar_status_download(arq.id, True)
+                        callback_interface(None, None, f"📥 [{subpasta_nome.upper()}] {nome_arquivo}\n")
+                        baixados += 1
+                    else:
+                        callback_interface(None, None, f"❌ [ERRO {resposta.status_code}] {nome_arquivo}\n")
                 
                 time.sleep(0.5)
             except Exception as e:
@@ -101,4 +155,3 @@ class DownloadService:
             f"Total analisado: {total_arquivos}\n"
         )
         callback_interface("Downloads finalizados!", 1.0, resumo_final)
-   

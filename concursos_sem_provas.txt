@@ -1,16 +1,16 @@
 === CONCURSOS SEM ARQUIVOS DE PROVAS ENCONTRADOS ===
-Gerado em: 07/06/2026 21:27:02
-Total de concursos sem registros capturados: 53
+Gerado em: 08/06/2026 10:41:16
+Total de concursos sem registros capturados: 50
 --------------------------------------------------
 
 🏆 Concurso: Concurso Público para a Procuradoria Geral do Município de Niterói
 🔗 Link: https://conhecimento.fgv.br/concursos/pgm.niteroi23
 --------------------------------------------------
-🏆 Concurso: Concurso Público para o Banco do Estado do Espírito Santo - BANESTES 2022
-🔗 Link: https://conhecimento.fgv.br/concursos/banestes22
---------------------------------------------------
 🏆 Concurso: Concurso Público para o Ministério Público do Estado de São Paulo
 🔗 Link: https://conhecimento.fgv.br/concursos/mpsp
+--------------------------------------------------
+🏆 Concurso: Concurso Público para o Banco do Estado do Espírito Santo - BANESTES 2022
+🔗 Link: https://conhecimento.fgv.br/concursos/banestes22
 --------------------------------------------------
 🏆 Concurso: Concurso Público para o Tribunal de Contas do Estado do Espírito Santo
 🔗 Link: https://conhecimento.fgv.br/concursos/tcees22
@@ -21,26 +21,23 @@ Total de concursos sem registros capturados: 53
 🏆 Concurso: Concurso Público para a Câmara Municipal de Taubaté
 🔗 Link: https://conhecimento.fgv.br/concursos/cmt22
 --------------------------------------------------
-🏆 Concurso: Concurso Público para a Secretaria Municipal de Saúde - SEMSA
-🔗 Link: https://conhecimento.fgv.br/concursos/semad22
---------------------------------------------------
 🏆 Concurso: Concurso Público para a Polícia Civil do Estado do Amazonas
 🔗 Link: https://conhecimento.fgv.br/concursos/pcam21
+--------------------------------------------------
+🏆 Concurso: Concurso Público para a Secretaria Municipal de Saúde - SEMSA
+🔗 Link: https://conhecimento.fgv.br/concursos/semad22
 --------------------------------------------------
 🏆 Concurso: Concurso Público para a Prefeitura Municipal de Paulínia
 🔗 Link: https://conhecimento.fgv.br/concursos/pmp21
 --------------------------------------------------
-🏆 Concurso: Concurso Público para a Polícia Civil do Estado do Rio de Janeiro
-🔗 Link: https://conhecimento.fgv.br/concursos/pcrj21
---------------------------------------------------
 🏆 Concurso: Concurso Público para a Fundação Regional de Saúde do Estado do Ceará
 🔗 Link: https://conhecimento.fgv.br/concursos/funsaude21
 --------------------------------------------------
-🏆 Concurso: Concurso Público para o Tribunal de Contas do Estado do Amazonas
-🔗 Link: https://conhecimento.fgv.br/concursos/tceam21
---------------------------------------------------
 🏆 Concurso: Concurso Público para o Tribunal de Contas do Estado do Piauí
 🔗 Link: https://conhecimento.fgv.br/concursos/tcepi21
+--------------------------------------------------
+🏆 Concurso: Concurso Público para o Tribunal de Contas do Estado do Amazonas
+🔗 Link: https://conhecimento.fgv.br/concursos/tceam21
 --------------------------------------------------
 🏆 Concurso: Concurso Público para a Prefeitura de Abreu e Lima
 🔗 Link: https://conhecimento.fgv.br/concursos/pal2020
@@ -51,17 +48,14 @@ Total de concursos sem registros capturados: 53
 🏆 Concurso: Concurso Público para a Assembleia Legislativa do Estado de Rondônia
 🔗 Link: https://conhecimento.fgv.br/concursos/alero
 --------------------------------------------------
-🏆 Concurso: Concurso Público para o Banco do Estado do Espírito Santo - BANESTES
-🔗 Link: https://conhecimento.fgv.br/concursos/sistemafinanceirobanestes
---------------------------------------------------
 🏆 Concurso: Concurso Público para a Assembleia Legislativa do Estado do Rio de Janeiro – ALERJ
 🔗 Link: https://conhecimento.fgv.br/concursos/alerj2016
 --------------------------------------------------
-🏆 Concurso: Concurso Público para o Instituto Brasileiro de Geografia e Estatística - IBGE
-🔗 Link: https://conhecimento.fgv.br/concursos/ibge
---------------------------------------------------
 🏆 Concurso: Concurso Público para a Secretaria de Educação do Estado de Pernambuco
 🔗 Link: https://conhecimento.fgv.br/concursos/see-pe
+--------------------------------------------------
+🏆 Concurso: Concurso Público para o Instituto Brasileiro de Geografia e Estatística - IBGE
+🔗 Link: https://conhecimento.fgv.br/concursos/ibge
 --------------------------------------------------
 🏆 Concurso: Concurso Público para a Companhia das Docas do Estado da Bahia
 🔗 Link: https://conhecimento.fgv.br/concursos/codeba
@@ -92,9 +86,6 @@ Total de concursos sem registros capturados: 53
 --------------------------------------------------
 🏆 Concurso: Concurso Público para o Tribunal de Contas do Estado da Bahia - TCE - BA
 🔗 Link: https://conhecimento.fgv.br/concursos/tceba
---------------------------------------------------
-🏆 Concurso: Concurso Público para a Assembleia Legislativa do Estado de Mato Grosso
-🔗 Link: https://conhecimento.fgv.br/concursos/almt
 --------------------------------------------------
 🏆 Concurso: Concurso Público para o Tribunal de Justiça do Amazonas
 🔗 Link: https://conhecimento.fgv.br/concursos/tjam13

@@ -19,6 +19,28 @@ class WebProofService:
         total_provas_ja_existentes = 0
         concursos_sem_prova = []
 
+        # LISTA ULTRA-RESTRITA: Apenas termos que são comprovadamente lixo exclusivo
+        palavras_ignorar = [
+            # Seus termos originais validados
+            "Resultado", "Comunicado", "Retificação", "Prova Oral", 
+            "Prova Prática", "Convocação", "Cronograma", "Aviso", 
+            "Portaria", "Liminar", "Prova Discursiva",
+            
+            # Novos termos de burocracia pura extraídos do seu TXT
+            "heteroidentificação", "autodeclaração", "sessão pública", 
+            "julgamento dos recursos", "tutorial", "sub judice", "decisão judicial", 
+            "cumprimento de sentença", "homologação", "eliminação de candidato", 
+            "desistência de candidato", "formulário", "avaliação médica", 
+            "exame médico", "atendimento especial", "resolução administrativa", 
+            "expediente da presidência", "banca examinadora",
+            
+            # Termos compostos seguros (evitam bloquear palavras soltas legítimas)
+            "Relação de candidatos", "Relação dos candidatos", "Relação de inscritos", "Relação nominal"
+        ]
+        
+        # O Regex busca pelas fronteiras exatas da palavra (\b) ignorando maiúsculas/minúsculas
+        padrao_ignorar = re.compile(r'\b(' + '|'.join(map(re.escape, palavras_ignorar)) + r')\b', re.IGNORECASE)
+
         for i, concurso in enumerate(concursos):
             porcentagem = (i + 1) / total_concursos
             callback_interface(f"Verificando {i+1}/{total_concursos} ({concurso.titulo[:25]}...)", porcentagem)
@@ -33,7 +55,6 @@ class WebProofService:
 
                 soup = BeautifulSoup(resposta.text, "lxml")
                 
-                # Normalização do título do concurso para a composição da descrição
                 titulo_concurso = " ".join(concurso.titulo.split())
                 padrao_prefixo = r"^concurso p[úu]blico\s+(para\s+(o|a|os|as)?\s+|para\s+)?"
                 titulo_concurso = re.sub(padrao_prefixo, "", titulo_concurso, flags=re.IGNORECASE).strip()
@@ -41,20 +62,17 @@ class WebProofService:
                 if titulo_concurso:
                     titulo_concurso = titulo_concurso[0].upper() + titulo_concurso[1:]
 
-                # Focamos estritamente nos blocos de arquivos do Drupal para evitar lixo e menus
                 blocos_publicacao = soup.select(".field--name-field-concurso-arquivos .field__item .paragraph--type--texto-data")
                 
                 if not blocos_publicacao:
                     conteudo_corpo = soup.select_one(".field--name-field-concurso-arquivos, .field--name-body")
-                    # Captura tanto os parágrafos normais quanto células de tabelas antigas (TCE-SE)
                     if conteudo_corpo:
                         blocos_publicacao = conteudo_corpo.find_all(["p", "td"])
                     else:
                         blocos_publicacao = []
 
-                # Variáveis de controle para rastreamento da árvore hierárquica
-                contexto_nivel1 = ""  # Ex: Prova Objetiva
-                contexto_nivel2 = ""  # Ex: Fiscal de Rendas - Manhã
+                contexto_nivel1 = ""  
+                contexto_nivel2 = ""  
 
                 for item_bloco in blocos_publicacao:
                     paragrafos = item_bloco.find_all("p") if item_bloco.name not in ["p", "td"] else [item_bloco]
@@ -67,21 +85,18 @@ class WebProofService:
                         classes = p_tag.get("class", [])
                         link_ancora = p_tag.find("a")
 
-                        # CASO 1: É uma linha de cabeçalho estrutural (Não possui link)
                         if not link_ancora:
                             if "Indent1" in classes:
                                 contexto_nivel2 = texto_linha
                             elif "Indent2" not in classes:
                                 contexto_nivel1 = texto_linha
-                                contexto_nivel2 = ""  # Reseta o subcontexto ao mudar o bloco principal
+                                contexto_nivel2 = ""  
                             continue
 
-                        # CASO 2: A linha atual possui um link
                         href_arq = link_ancora.get("href")
                         if not href_arq or href_arq.startswith("#"):
                             continue
 
-                        # REQUISITO ESTRITO: Validar se o link é de fato um arquivo válido
                         href_lower = href_arq.lower()
                         if "login.aspx" in href_lower or "form.aspx" in href_lower:
                             continue
@@ -91,11 +106,9 @@ class WebProofService:
 
                         txt_link = " ".join(link_ancora.get_text(strip=True).split()).strip(" -:")
                         
-                        # CORREÇÃO CRÍTICA: Aumentado o limite de 45 para 100 para não amputar descrições longas em tabelas
                         if len(txt_link) > 100 or any(ignorar in txt_link.lower() for ignorar in ["clique aqui", "página inicial", "voltar", "inscrição", "inscreva-se"]):
                             continue
 
-                        # CORREÇÃO DA MEMÓRIA: Se a linha está na raiz, limpa os contextos de árvore
                         if "Indent1" not in classes and "Indent2" not in classes:
                             contexto_nivel1 = ""
                             contexto_nivel2 = ""
@@ -108,7 +121,6 @@ class WebProofService:
                         # == CONSTRUÇÃO DA ÁRVORE DA DESCRIÇÃO ==
                         partes_nome = [titulo_concurso]
 
-                        # Só adiciona o contexto_nivel1 se o texto do próprio link já não contiver a palavra descrita nele
                         if contexto_nivel1 and contexto_nivel1.lower() != titulo_concurso.lower():
                             if contexto_nivel1.lower() not in txt_link.lower():
                                 partes_nome.append(contexto_nivel1)
@@ -117,7 +129,6 @@ class WebProofService:
                             if contexto_nivel2.lower() not in txt_link.lower():
                                 partes_nome.append(contexto_nivel2)
 
-                        # Adiciona o texto do link se ele trouxer informação nova relevante
                         if txt_link and txt_link.lower() != contexto_nivel2.lower() and txt_link.lower() != contexto_nivel1.lower():
                             if txt_link.isdigit():
                                 partes_nome.append(f"Tipo {txt_link}")
@@ -125,6 +136,10 @@ class WebProofService:
                                 partes_nome.append(txt_link)
 
                         descricao_completa = " - ".join(partes_nome)
+
+                        # === FILTRAGEM PRECISA ===
+                        if padrao_ignorar.search(descricao_completa):
+                            continue
 
                         # Persistência no banco de dados
                         foi_salvo = ConcursoRepository.salvar_arquivo_prova(concurso.id, descricao_completa, url_arq_completa)
@@ -165,7 +180,7 @@ class WebProofService:
             except Exception as error_file:
                 txt_relatorio = f"⚠️ Falha ao salvar arquivo txt de relatório: {error_file}\n"
         else:
-            txt_relatorio = "🎉 Excelente! Todos os concursos analisados possuíam provas e gabaritos cadastrados.\n"
+            txt_relatorio = "🎉 Excelente! Todos os concursos analisados possuiu provas e gabaritos cadastrados.\n"
 
         fim_txt = f"\n=== VARREDURA WEB CONCLUÍDA ===\nInéditas: {total_provas_descobertas} | Já existentes: {total_provas_ja_existentes}\n{txt_relatorio}"
         callback_interface("Varredura de Provas Concluída!", 1.0, fim_txt)

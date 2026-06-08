@@ -123,10 +123,11 @@ class PdfSearchService:
     @staticmethod
     def separar_por_materias(pasta_origem: str, callback_interface) -> None:
         """
-        Varre todos os PDFs da pasta de origem, identifica as matérias presentes no conteúdo
-        e cria subpastas automaticamente dentro da própria pasta de origem.
+        Varre todos os PDFs da pasta de origem em ordem alfabética, identifica as matérias 
+        presentes no conteúdo e cria subpastas automaticamente dentro da própria pasta de origem.
         """
-        arquivos = [f for f in os.listdir(pasta_origem) if f.lower().endswith(".pdf")]
+        # APLICAÇÃO DA ORDEM ALFABÉTICA: Adicionado o sorted() envolvido na listagem
+        arquivos = sorted([f for f in os.listdir(pasta_origem) if f.lower().endswith(".pdf")])
         total = len(arquivos)
 
         if total == 0:
@@ -185,4 +186,4 @@ class PdfSearchService:
             "Separação por Matérias Concluída!", 
             1.0, 
             f"\n=== PROCESSO DE MATÉRIAS FINALIZADO ===\nSubpastas criadas diretamente em:\n{pasta_origem}\n"
-        )        
+        )
