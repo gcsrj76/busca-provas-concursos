@@ -134,13 +134,14 @@ class PdfSearchService:
             callback_interface("Nenhum PDF encontrado na pasta.", 1.0, "Processamento vazio.\n")
             return
 
-        materias_alvo = {
-            "Língua Portuguesa": "Língua Portuguesa",
-            "Legislação": "Legislação",
-            "Raciocínio Lógico": "Raciocínio Lógico",
-            "Informática": "Informática",
-            "Analista de Tecnologia": "Analista de Tecnologia"
-        }
+        materias_alvo = [
+            "Língua Portuguesa",
+            "Legislação",
+            "Raciocínio Lógico",
+            "Informática",
+            "Analista de Tecnologia",
+            "Conhecimentos Específicos"
+            ]
 
         total_copias = 0
 
@@ -161,9 +162,9 @@ class PdfSearchService:
                         if txt:
                             texto_completo_pdf += txt
 
-                    for nome_materia, termo_busca in materias_alvo.items():
-                        if termo_busca in texto_completo_pdf:
-                            materias_detectadas.append(nome_materia)
+                    for materia in materias_alvo:
+                        if materia in texto_completo_pdf:
+                            materias_detectadas.append(materia)
 
                 if materias_detectadas:
                     for materia in materias_detectadas:
