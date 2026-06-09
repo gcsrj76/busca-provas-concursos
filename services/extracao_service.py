@@ -37,7 +37,7 @@ class ListaQuestoesSchema(BaseModel):
 class ExtracaoService:
 
     @staticmethod
-    def extrair_questoes_json(pasta_diretorio, materia, tamanho_bloco, callback_interface):
+    def extrair_questoes_json(pasta_pdf, pasta_json, materia, tamanho_bloco, callback_interface):
         """
         Orquestra o pipeline completo:
         1. Varre e ordena alfanumericamente os PDFs da pasta.
@@ -48,11 +48,11 @@ class ExtracaoService:
         """
         # Criar subdiretório baseado no nome da matéria
         nome_subpasta_materia = materia.replace(' ', '_').lower()
-        diretorio_saida_final = os.path.join(pasta_diretorio, nome_subpasta_materia)
+        diretorio_saida_final = os.path.join(pasta_json, nome_subpasta_materia)
         os.makedirs(diretorio_saida_final, exist_ok=True)
 
         # Captura e ordenação alfanumérica idêntica à original
-        arquivos_brutos = [f for f in os.listdir(pasta_diretorio) if f.lower().endswith(".pdf")]
+        arquivos_brutos = [f for f in os.listdir(pasta_pdf) if f.lower().endswith(".pdf")]
         arquivos_ordenados = sorted(
             arquivos_brutos, 
             key=lambda s: [int(texto) if texto.isdigit() else texto.lower() for texto in re.split(r'(\d+)', s)]
@@ -83,15 +83,24 @@ class ExtracaoService:
             )
 
             # --- PASSO 1: EXTRAÇÃO DO TEXTO LIMPO INTEGRADO (DO LOTE ATUAL) ---
-            texto_limpo_lote = ExtracaoService._executar_texto_limpo_lote(pasta_diretorio, lote_atual, callback_interface)
+            texto_limpo_lote = ExtracaoService._executar_texto_limpo_lote(pasta_pdf, lote_atual, callback_interface)
 
             # Gravação do arquivo de depuração do Bloco de Texto Limpo (Controle/Depuração requisitado)
             nome_arq_depuracao_txt = f"depuracao_bloco_{numero_bloco_incremental:04d}.txt"
             caminho_depuracao_txt = os.path.join(diretorio_saida_final, nome_arq_depuracao_txt)
             
             with open(caminho_depuracao_txt, "w", encoding="utf-8") as f_depura:
-                # Cabeçalho identificador dos arquivos lidos no início do documento
-                f_depura.write(f"=== ARQUIVOS DESTE BLOCO: {', '.join(lote_atual)} ===\n\n")
+                # 1. Cabeçalho inicial
+                f_depura.write("=== ARQUIVOS TRATADOS NESTE INTERVALO ===\n")
+                
+                # 2. Varre o lote atual e escreve cada nome de arquivo em uma linha própria
+                for nome_arquivo in lote_atual:
+                    f_depura.write(f"- {nome_arquivo}\n")
+                
+                # 3. Linha divisória para separar o cabeçalho do conteúdo útil
+                f_depura.write("=========================================\n\n")
+                
+                # 4. Escreve o texto limpo acumulado
                 f_depura.write(texto_limpo_lote.strip())
 
             # --- PASSO 2: FILTRAGEM DA MATÉRIA DO LOTE ---
@@ -129,7 +138,7 @@ class ExtracaoService:
         callback_interface("Processamento Concluído com Sucesso!", 1.0, "=== PIPELINE DE SUCESSO ABSOLUTO FINALIZADO ===\n")
 
     @staticmethod
-    def _executar_texto_limpo_lote(caminho_pdf, lote_arquivos, callback_interface):
+    def _executar_texto_limpo_lote(pasta_pdf, lote_arquivos, callback_interface):
         """
         Lógica interna nativa que extrai o texto de um conjunto específico de arquivos (Lote),
         preservando os tratamentos contra cabeçalhos, rodapés e regras de recortes de linhas.
@@ -144,7 +153,7 @@ class ExtracaoService:
         texto_acumulado_lote = ""
 
         for nome_arq in lote_arquivos:
-            caminho_origem = os.path.join(caminho_pdf, nome_arq)
+            caminho_origem = os.path.join(pasta_pdf, nome_arq)
             try:
                 texto_completo_arquivo = ""
                 leitor = PdfReader(caminho_origem)
