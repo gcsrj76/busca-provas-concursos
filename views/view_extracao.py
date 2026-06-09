@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import filedialog
 import customtkinter as ctk
 from services.extracao_service import ExtracaoService
-from services.pdf_search_service import PdfSearchService  # Importado para acessar a nova rotina
+from services.pdf_search_service import PdfSearchService  
 import os
 
 class ViewExtracao(ctk.CTkFrame):
@@ -12,7 +12,7 @@ class ViewExtracao(ctk.CTkFrame):
         
         # Título da Tela
         self.label_titulo = ctk.CTkLabel(
-            self, text="Extração Inteligente (Gemini API)", 
+            self, text="Extração de Questões", 
             font=ctk.CTkFont(size=20, weight="bold")
         )
         self.label_titulo.pack(pady=(20, 10), padx=20, anchor="w")
@@ -27,9 +27,7 @@ class ViewExtracao(ctk.CTkFrame):
         self.entry_pasta = ctk.CTkEntry(self.frame_inputs, placeholder_text="Selecione a pasta onde estão os arquivos PDFs...")
         self.entry_pasta.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=(0, 15))
         
-        #caminho_linux = os.path.join(os.path.expanduser("~"), "Downloads", "selecionadas")
         caminho_linux = os.path.join(os.path.expanduser("~"), "Área de trabalho","Concursos","Provas Objetivas","Teste")        
-        
         self.entry_pasta.insert(0, caminho_linux)
        
         self.btn_procurar = ctk.CTkButton(self.frame_inputs, text="Procurar", width=100, command=self._selecionar_pasta)
@@ -39,12 +37,35 @@ class ViewExtracao(ctk.CTkFrame):
         self.frame_restricoes = ctk.CTkFrame(self)
         self.frame_restricoes.pack(fill="x", padx=20, pady=10)
         
-        self.label_restricao = ctk.CTkLabel(self.frame_restricoes, text="Filtro/Restrição de Busca (Matéria Inicial):")
-        self.label_restricao.pack(padx=10, pady=(10, 2), anchor="w")
+        # Sub-frame da Esquerda (Combobox de Matéria)
+        self.sub_frame_materia = ctk.CTkFrame(self.frame_restricoes, fg_color="transparent")
+        self.sub_frame_materia.pack(side="left", fill="x", expand=True, padx=10, pady=10)
         
-        self.entry_restricao = ctk.CTkEntry(self.frame_restricoes, placeholder_text="Ex: Língua Portuguesa")
-        self.entry_restricao.pack(fill="x", padx=10, pady=(0, 15))
-        self.entry_restricao.insert(0, "Língua Portuguesa") # Valor padrão confortável e exato para a capitulação
+        self.label_restricao = ctk.CTkLabel(self.sub_frame_materia, text="Filtro/Restrição de Busca (Matéria Inicial):")
+        self.label_restricao.pack(anchor="w", pady=(0, 2))
+        
+        opcoes_materias = [
+            "Língua Portuguesa", 
+            "Legislação", 
+            "Raciocínio Lógico", 
+            "Informática", 
+            "Analista de Tecnologia", 
+            "Conhecimentos Específicos"
+        ]
+        
+        self.entry_restricao = ctk.CTkComboBox(self.sub_frame_materia, values=opcoes_materias)
+        self.entry_restricao.pack(fill="x", pady=(0, 5))
+        self.entry_restricao.set("Língua Portuguesa")
+        
+        # Sub-frame da Direita (Número de Blocos)
+        self.sub_frame_blocos = ctk.CTkFrame(self.frame_restricoes, fg_color="transparent")
+        self.sub_frame_blocos.pack(side="right", padx=10, pady=10)
+        
+        self.label_blocos = ctk.CTkLabel(self.sub_frame_blocos, text="Número de Blocos:")
+        self.label_blocos.pack(anchor="w", pady=(0, 2))
+        
+        self.entry_blocos = ctk.CTkEntry(self.sub_frame_blocos, placeholder_text="Ex: 5", width=120)
+        self.entry_blocos.pack(fill="x", pady=(0, 5))
         
         # Monitoramento de Progresso e Logs
         self.progress_bar = ctk.CTkProgressBar(self)
@@ -54,25 +75,7 @@ class ViewExtracao(ctk.CTkFrame):
         self.txt_log = ctk.CTkTextbox(self, height=150)
         self.txt_log.pack(fill="both", expand=True, padx=20, pady=10)
         
-        """
-        # Botão de Execução - Gemini
-        self.btn_disparar_gemini = ctk.CTkButton(
-            self, text="Iniciar Processamento Gemini", 
-            fg_color="#2c3e50", hover_color="#34495e",
-            command=self._iniciar_extracao_gemini_thread
-        )
-        self.btn_disparar_gemini.pack(fill="x", padx=20, pady=(10, 5))
-        """
-
-        # Botão de Execução - Extrair Texto/Matérias"
-        self.btn_disparar_manual = ctk.CTkButton(
-            self, text="Extrair Texto/Matérias", 
-            fg_color="#2c3e50", hover_color="#34495e",
-            command=self._extrair_texto_limpo_tread            
-        )
-        self.btn_disparar_manual.pack(fill="x", padx=20, pady=(5, 5))        
-
-        # NOVO BOTÃO: Extrair JSON
+        # BOTÃO ÚNICO ATIVO
         self.btn_extrair_json = ctk.CTkButton(
             self, text="Extrair JSON", 
             fg_color="#e67e22", hover_color="#d35400",
@@ -87,81 +90,48 @@ class ViewExtracao(ctk.CTkFrame):
             self.entry_pasta.insert(0, pasta)
 
     def _bloquear_componentes(self):
-        #self.btn_disparar_gemini.configure(state="disabled")
-        self.btn_disparar_manual.configure(state="disabled")
         self.btn_extrair_json.configure(state="disabled")
         self.btn_procurar.configure(state="disabled")
+        self.entry_restricao.configure(state="disabled")
+        self.entry_blocos.configure(state="disabled")
         self.txt_log.delete("1.0", tk.END)
 
     def _liberar_componentes(self):
-        #self.btn_disparar_gemini.configure(state="normal")
-        self.btn_disparar_manual.configure(state="normal")
         self.btn_extrair_json.configure(state="normal")
         self.btn_procurar.configure(state="normal")
+        self.entry_restricao.configure(state="normal")
+        self.entry_blocos.configure(state="normal")
 
-    def _extrair_texto_limpo_tread(self):
+    def _extrair_json_thread(self):
         pasta = self.entry_pasta.get().strip()
         materia = self.entry_restricao.get().strip()
+        blocos_str = self.entry_blocos.get().strip()
         
         if not pasta or not materia:
             self._atualizar_interface("Erro: A pasta e a Matéria Inicial são obrigatórias.", 0)
-            return
-            
-        self._bloquear_componentes()
-        
-        threading.Thread(
-            target=ExtracaoService.extrair_texto_limpo,
-            args=(pasta, materia, self._atualizar_interface),
-            
+            return     
 
-            daemon=True
-        ).start()
-
-    def _extrair_json_thread(self):
-        """Abre caixa de diálogo para escolher o arquivo .txt gerado e roda a extração em JSON"""
-        caminho_inicial = self.entry_pasta.get().strip()
-        if not os.path.exists(caminho_inicial):
-            caminho_inicial = os.path.expanduser("~")
-
-        arquivo_txt = filedialog.askopenfilename(
-            initialdir=caminho_inicial,
-            title="Selecione o arquivo TXT gerado na extração manual",
-            filetypes=[("Arquivos de Texto", "*.txt"), ("Todos os arquivos", "*.*")]
-        )
-
-        if not arquivo_txt:
-            return
-
-        # Define automaticamente o nome do arquivo JSON de saída no mesmo diretório
-        diretorio_pai = os.path.dirname(arquivo_txt)
-        arquivo_json_saida = os.path.join(diretorio_pai, "importacao_final.json")
+        # Validação do tamanho do lote/bloco (padrão 1 caso o usuário não defina)
+        try:
+            tamanho_bloco = int(blocos_str) if blocos_str else 1
+            if tamanho_bloco <= 0:
+                tamanho_bloco = 1
+        except ValueError:
+            tamanho_bloco = 1
 
         self._bloquear_componentes()
-        self.progress_bar.set(0.5)
-        self.txt_log.insert(tk.END, f"[Iniciando processamento do arquivo estruturado para JSON...]\n")
+        self.progress_bar.set(0.0)
+        self.txt_log.insert(tk.END, f"[Iniciando pipeline de processamento e conversão estruturada...]\n")
 
-        # Função interna que rodará na Thread secundária
         def worker():
             try:
-                ExtracaoService.extrair_questoes_json(arquivo_txt, arquivo_json_saida)
-                # Sincroniza com a Main Thread para atualizar o sucesso
-                self.after(0, self._atualizar_interface, "Conversão JSON Concluída!", 1.0, 
-                           f"✅ Arquivo JSON gerado com absoluto sucesso!\nSalvo em: {arquivo_json_saida}\n")
+                # O processamento centralizado agora inicia aqui e coordena tudo internamente
+                ExtracaoService.extrair_questoes_json(pasta, materia, tamanho_bloco, self._atualizar_interface)
             except Exception as ex:
-                # CORREÇÃO: Extraímos a string do erro antes de despachar para o loop de eventos da interface
                 erro_msg = str(ex)
-                self.after(0, self._atualizar_interface, "Erro na conversão", 1.0, f"❌ Falha crítica: {erro_msg}\n")
+                self.after(0, self._atualizar_interface, "Erro no processamento", 1.0, f"❌ Falha crítica: {erro_msg}\n")
 
         threading.Thread(target=worker, daemon=True).start()
-
-    def _atualizar_interface_temp(self, mensagem, log_adicional=None):
-        self.after(0, self._processar_atualizacao_temp, mensagem, log_adicional)
-
-    def _processar_atualizacao_temp(self, mensagem, log_adicional):
-        self.txt_log.insert(tk.END, f"[{mensagem}]\n")
-        if log_adicional:
-            self.txt_log.insert(tk.END, log_adicional)
-        self.txt_log.see(tk.END)       
 
     def _atualizar_interface(self, mensagem, progresso, log_adicional=None):
         self.after(0, self._processar_atualizacao, mensagem, progresso, log_adicional)
