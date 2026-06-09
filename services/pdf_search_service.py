@@ -121,7 +121,7 @@ class PdfSearchService:
         )
 
     @staticmethod
-    def separar_por_materias(pasta_origem: str, callback_interface) -> None:
+    def separar_por_materias(pasta_origem: str, pasta_destino: str, callback_interface) -> None:
         """
         Varre todos os PDFs da pasta de origem em ordem alfabética, identifica as matérias 
         presentes no conteúdo e cria subpastas automaticamente dentro da própria pasta de origem.
@@ -145,6 +145,8 @@ class PdfSearchService:
 
         total_copias = 0
 
+        contador_incremental = 1
+
         for i, nome_arq in enumerate(arquivos):
             prog = (i + 1) / total
             callback_interface(f"Analisando conteúdo de {i+1}/{total}...", prog, None)
@@ -167,13 +169,19 @@ class PdfSearchService:
                             materias_detectadas.append(materia)
 
                 if materias_detectadas:
+
+                    novo_nome_arquivo = f"{contador_incremental:04d} - {nome_arq}"
+
                     for materia in materias_detectadas:
                         # Cria a pasta da matéria diretamente dentro do diretório original dos PDFs
-                        caminho_subpasta = os.path.join(pasta_origem, materia)
+                        caminho_subpasta = os.path.join(pasta_destino, materia)
                         os.makedirs(caminho_subpasta, exist_ok=True)
-                        
-                        shutil.copy2(caminho_completo_origem, os.path.join(caminho_subpasta, nome_arq))
-                        total_copias += 1
+
+                        caminho_destino_final = os.path.join(caminho_subpasta, novo_nome_arquivo)
+                        shutil.copy2(caminho_completo_origem, caminho_destino_final)
+                        total_copias += 1  
+
+                    contador_incremental += 1                      
 
                     lista_formatada = ", ".join(materias_detectadas)
                     callback_interface(None, prog, f"📁 [{lista_formatada}] -> {nome_arq}\n")
