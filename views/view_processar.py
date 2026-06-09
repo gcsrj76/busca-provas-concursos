@@ -9,7 +9,7 @@ class ViewProcessar(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent, fg_color="transparent")
 
-        self.lbl_titulo = ctk.CTkLabel(self, text="⚙️ Processar Provas / PDFs Locais", font=("Arial", 18, "bold"))
+        self.lbl_titulo = ctk.CTkLabel(self, text="⚙️ Processar PDFs Baixados (Provas, Editais e Gabaritos)", font=("Arial", 18, "bold"))
         self.lbl_titulo.pack(pady=15)
 
         self.frame_grid = ctk.CTkFrame(self)
@@ -27,10 +27,10 @@ class ViewProcessar(ctk.CTkFrame):
         ctk.CTkButton(self.frame_grid, text="Procurar...", width=90, command=lambda: self.escolher_pasta(self.txt_destino)).grid(row=1, column=2, padx=10, pady=5)
 
         # Botões de Ação posicionados na Linha 2 do Grid
-        self.btn_filtrar = ctk.CTkButton(self.frame_grid, text="Separar PDFs", fg_color="#2980b9", command=self.disparar_filtro)
+        self.btn_filtrar = ctk.CTkButton(self.frame_grid, text="Separar PDFs por Tipo", fg_color="#2980b9", command=self.separar_pdf_tipo)
         self.btn_filtrar.grid(row=2, column=1, padx=5, pady=10, sticky="e")
 
-        self.btn_filtrar_materias = ctk.CTkButton(self.frame_grid, text="Separar PDFs por Matérias", fg_color="#e67e22", command=self.disparar_filtro_materias)
+        self.btn_filtrar_materias = ctk.CTkButton(self.frame_grid, text="Separar Provas por Matérias", fg_color="#e67e22", command=self.separar_prova_materia)
         self.btn_filtrar_materias.grid(row=2, column=2, padx=10, pady=10, sticky="we")
 
         self.frame_grid.columnconfigure(1, weight=1)
@@ -53,7 +53,7 @@ class ViewProcessar(ctk.CTkFrame):
         self.btn_filtrar.configure(state="normal")
         self.btn_filtrar_materias.configure(state="normal")
 
-    def disparar_filtro(self):
+    def separar_pdf_tipo(self):
         origem = self.txt_origem.get().strip()
         destino = self.txt_destino.get().strip()
 
@@ -64,12 +64,12 @@ class ViewProcessar(ctk.CTkFrame):
         self.bloquear_botoes()
 
         threading.Thread(
-            target=PdfSearchService.filtrar_por_padrao_fgv, 
+            target=PdfSearchService.separar_por_tipos, 
             args=(origem, destino, self.callback_thread), 
             daemon=True
         ).start()        
 
-    def disparar_filtro_materias(self):
+    def separar_prova_materia(self):
         origem = self.txt_origem.get().strip()
 
         if not origem:

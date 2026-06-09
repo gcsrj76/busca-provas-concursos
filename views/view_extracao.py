@@ -12,7 +12,7 @@ class ViewExtracao(ctk.CTkFrame):
         
         # Título da Tela
         self.label_titulo = ctk.CTkLabel(
-            self, text="Extração de Questões", 
+            self, text="Extrair Questões das Provas", 
             font=ctk.CTkFont(size=20, weight="bold")
         )
         self.label_titulo.pack(pady=(20, 10), padx=20, anchor="w")
@@ -37,7 +37,7 @@ class ViewExtracao(ctk.CTkFrame):
         self.frame_inputs_json = ctk.CTkFrame(self)
         self.frame_inputs_json.pack(fill="x", padx=20, pady=5)
         
-        self.label_pasta_json = ctk.CTkLabel(self.frame_inputs_json, text="Diretório para geração dos Arquivos Jsons:")
+        self.label_pasta_json = ctk.CTkLabel(self.frame_inputs_json, text="Diretório para geração dos Arquivos JSONs:")
         self.label_pasta_json.pack(padx=10, pady=(10, 2), anchor="w")
 
         self.entry_pasta_json = ctk.CTkEntry(self.frame_inputs_json, placeholder_text="Selecione a pasta onde os arquivos JSONs serão salvos...")

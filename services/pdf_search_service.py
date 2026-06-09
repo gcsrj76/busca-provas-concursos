@@ -53,7 +53,7 @@ class PdfSearchService:
         callback_interface("Processamento Concluído!", 1.0, f"\n=== PROCESSO LOCAL FINALIZADO ===\n{cont_match} arquivos movidos com sucesso para a pasta selecionada.\n")
 
     @staticmethod
-    def filtrar_por_padrao_fgv(pasta_origem: str, pasta_filtrados: str, callback_interface) -> None:
+    def separar_por_tipos(pasta_origem: str, pasta_filtrados: str, callback_interface) -> None:
         """
         Varre a pasta de origem e copia para a pasta de destino apenas os PDFs que atendem
         a uma das duas assinaturas de capa padrão da FGV na primeira página.
