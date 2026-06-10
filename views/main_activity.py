@@ -4,12 +4,15 @@ from views.view_coleta import ViewColeta
 from views.view_busca import ViewBusca
 from views.view_download import ViewDownload
 from views.view_processar import ViewProcessar
-from views.view_extracao import ViewExtracao  # <--- 1. AJUSTE: Nova Importação
+from views.view_extracao import ViewExtracao
+from repository.concurso_repo import ConcursoRepository
 
 class ScraperApp(ctk.CTk):
     """Atua como a Janela Principal unificada controlando as sub-views."""
     def __init__(self):
         super().__init__()
+
+        ConcursoRepository.gerar_listagem_provisoria_descricoes()
 
         self.title("Monitor Avançado Corporativo - FGV Pro")
         self.geometry("980x700")

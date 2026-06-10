@@ -9,6 +9,7 @@ import re
 import json
 from pypdf import PdfReader
 from collections import Counter
+import unicodedata
 
 class RespostaSchema(BaseModel):
     texto: str = Field(description="O texto descritivo da alternativa.")
@@ -37,7 +38,7 @@ class ListaQuestoesSchema(BaseModel):
 class ExtracaoService:
 
     @staticmethod
-    def extrair_questoes_json(pasta_pdf, pasta_json, materia, tamanho_bloco, callback_interface):
+    def extrair_questoes_json(pasta_pdf, pasta_json, materia, tamanho_bloco, callback_interface):        
         """
         Orquestra o pipeline completo:
         1. Varre e ordena alfanumericamente os PDFs da pasta.
@@ -51,8 +52,15 @@ class ExtracaoService:
         diretorio_saida_final = os.path.join(pasta_json, nome_subpasta_materia)
         os.makedirs(diretorio_saida_final, exist_ok=True)
 
+        pasta_provas = os.path.join(pasta_pdf, "Prova")
+        pasta_gabaritos = os.path.join(pasta_pdf, "Gabarito")   
+
+        if not os.path.exists(pasta_provas) or not os.path.exists(pasta_gabaritos):
+            callback_interface("Pastas 'Prova' e/ou 'Gabarito' não encontradas no local informado.", 1.0, "Processamento abortado: pasta não localizada.\n")
+            return 
+
         # Captura e ordenação alfanumérica idêntica à original
-        arquivos_brutos = [f for f in os.listdir(pasta_pdf) if f.lower().endswith(".pdf")]
+        arquivos_brutos = [f for f in os.listdir(pasta_provas) if f.lower().endswith(".pdf")]
         arquivos_ordenados = sorted(
             arquivos_brutos, 
             key=lambda s: [int(texto) if texto.isdigit() else texto.lower() for texto in re.split(r'(\d+)', s)]
@@ -83,7 +91,7 @@ class ExtracaoService:
             )
 
             # --- PASSO 1: EXTRAÇÃO DO TEXTO LIMPO INTEGRADO (DO LOTE ATUAL) ---
-            texto_limpo_lote = ExtracaoService._executar_texto_limpo_lote(pasta_pdf, lote_atual, callback_interface)
+            texto_limpo_lote = ExtracaoService._executar_texto_limpo_lote(pasta_provas, lote_atual, callback_interface)
 
             # Gravação do arquivo de depuração do Bloco de Texto Limpo (Controle/Depuração requisitado)
             nome_arq_depuracao_txt = f"depuracao_bloco_{numero_bloco_incremental:04d}.txt"
@@ -113,8 +121,11 @@ class ExtracaoService:
                 )
                 continue
 
-            # --- PASSO 3: ESTRUTURAÇÃO DO TEXTO DA MATÉRIA PARA JSON ---
-            dados_questoes_estruturadas = ExtracaoService._converter_texto_para_estrutura_dados(texto_filtrado_materia)
+            # --- PASSO 3: MONTAGEM DO GABARITO PARA O JSON ---
+            gabaritos = ExtracaoService._obter_gabaritos(lote_atual, pasta_provas, pasta_gabaritos)
+
+            # --- PASSO 4: ESTRUTURAÇÃO DO TEXTO DA MATÉRIA PARA JSON ---
+            dados_questoes_estruturadas = ExtracaoService._converter_texto_para_estrutura_dados(texto_filtrado_materia, gabaritos)
 
             # Formatação do nome de saída exigido: <Matéria><Número incremental com 4 dígitos>.json
             nome_arquivo_json_final = f"{nome_subpasta_materia}_{numero_bloco_incremental:04d}.json"
@@ -396,3 +407,223 @@ class ExtracaoService:
             i += 1
 
         return dados_questoes
+    
+    @staticmethod
+    def _obter_gabaritos(lista_arquivos_provas, pasta_localizacao_provas, pasta_localizacao_gabaritos):
+        """
+        Para cada arquivo de prova, identifica o prefixo numérico, localiza os gabaritos 
+        correspondentes na pasta de gabaritos, realiza a leitura/extração de cada um e 
+        retorna uma listagem acumulada com o texto retornado por todos eles.
+        """
+        listagem_acumulada_textos = []
+
+        # 1. Mapeia todos os arquivos da pasta de gabaritos uma única vez para otimizar o disco
+        try:
+            todos_gabaritos_pasta = [
+                f for f in os.listdir(pasta_localizacao_gabaritos) 
+                if f.lower().endswith(".pdf")
+            ]
+        except Exception:
+            todos_gabaritos_pasta = []
+
+        # 2. Itera sobre a lista de arquivos de prova fornecida
+        for arquivo_prova in lista_arquivos_provas:
+            # Captura o prefixo numérico inicial (ex: '010004')
+            match = re.match(r'^(\d+)', arquivo_prova)
+            if not match:
+                continue
+                
+            prefixo_prova = match.group(1)
+            
+            # 3. Filtra os gabaritos da pasta que possuem o mesmo prefixo
+            gabaritos_vinculados = [
+                gab for gab in todos_gabaritos_pasta 
+                if gab.startswith(prefixo_prova)
+            ]            
+            
+            # Executa a rotina de extração passando o caminho do arquivo
+            texto_extraido = ExtracaoService._extrair_respostas(arquivo_prova, gabaritos_vinculados, pasta_localizacao_gabaritos)
+                
+            listagem_acumulada_textos.append(texto_extraido)
+
+        # Retorna a listagem contendo cada um dos retornos obtidos
+        return listagem_acumulada_textos
+    
+    @staticmethod
+    def _extrair_respostas(arquivo_prova, gabaritos_vinculados, pasta_localizacao_gabaritos):
+
+        melhor_score_global = 0
+        melhor_texto = ""
+
+        for arquivo_gabarito in gabaritos_vinculados:
+
+            caminho = os.path.join(
+                pasta_localizacao_gabaritos,
+                arquivo_gabarito
+            )
+
+            texto_pdf = ExtracaoService.extrair_texto(caminho)
+
+            titulo, posicao, score = \
+                ExtracaoService._localizar_melhor_bloco(
+                    texto_pdf,
+                    arquivo_prova
+                )
+
+            if not titulo:
+                continue
+
+            if score > melhor_score_global:
+
+                inicio = posicao
+
+                proximo = re.search(
+                    r'.*?-\s*TIPO\s+\d+',
+                    texto_pdf[inicio + len(titulo):],
+                    re.MULTILINE
+                )
+
+                if proximo:
+                    fim = inicio + len(titulo) + proximo.start()
+                else:
+                    fim = len(texto_pdf)
+
+                bloco = texto_pdf[inicio:fim]
+
+                respostas = \
+                    ExtracaoService._extrair_gabarito_do_bloco(
+                        bloco
+                    )
+
+                melhor_score_global = score
+                melhor_texto = respostas
+
+        return melhor_texto
+
+    @staticmethod
+    def _normalizar(texto):
+
+        texto = texto.lower()
+
+        texto = ''.join(
+            c for c in unicodedata.normalize('NFD', texto)
+            if unicodedata.category(c) != 'Mn'
+        )
+
+        texto = re.sub(r'[^a-z0-9 ]', ' ', texto)
+
+        texto = re.sub(r'\s+', ' ', texto)
+
+        return texto.strip()    
+    
+    @staticmethod
+    def _obter_termos_prova(nome_arquivo):
+
+        nome = os.path.splitext(nome_arquivo)[0]
+
+        partes = nome.split(" - ")
+
+        # remove prefixo numérico
+        if partes and partes[0].isdigit():
+            partes.pop(0)
+
+        # remove nome do órgão
+        if len(partes) > 1:
+            partes.pop(0)
+
+        texto = " ".join(partes)
+
+        texto = ExtracaoService._normalizar(texto)
+
+        palavras = [
+            p for p in texto.split()
+            if len(p) > 2
+        ]
+
+        return palavras    
+    
+    @staticmethod
+    def _calcular_score(titulo, termos_prova):
+
+        titulo_norm = ExtracaoService._normalizar(titulo)
+
+        score = 0
+
+        for termo in termos_prova:
+
+            if termo in titulo_norm:
+                score += 1
+
+        return score    
+    
+    @staticmethod
+    def _localizar_melhor_bloco(texto_pdf, arquivo_prova):
+
+        termos = ExtracaoService._obter_termos_prova(arquivo_prova)
+
+        regex_titulo = re.compile(
+            r'^(.*?)\s*-\s*TIPO\s+\d+',
+            re.MULTILINE
+        )
+
+        melhor_score = 0
+        melhor_titulo = None
+        melhor_posicao = -1
+
+        for match in regex_titulo.finditer(texto_pdf):
+
+            titulo = match.group(0)
+
+            score = ExtracaoService._calcular_score(
+                titulo,
+                termos
+            )
+
+            if score > melhor_score:
+
+                melhor_score = score
+                melhor_titulo = titulo
+                melhor_posicao = match.start()
+
+        return melhor_titulo, melhor_posicao, melhor_score    
+    
+    @staticmethod
+    def _extrair_gabarito_do_bloco(texto_bloco):
+
+        respostas = re.findall(
+            r'\b[A-E]\b|\*',
+            texto_bloco
+        )
+
+        if len(respostas) < 60:
+            return ""
+
+        respostas = respostas[:60]
+
+        return "\n".join(
+            f"{i+1};{resp}"
+            for i, resp in enumerate(respostas)
+        )    
+    
+    @staticmethod
+    def extrair_texto(caminho_pdf):
+
+        try:
+
+            reader = PdfReader(caminho_pdf)
+
+            texto = ""
+
+            for pagina in reader.pages:
+
+                conteudo = pagina.extract_text()
+
+                if conteudo:
+                    texto += conteudo + "\n"
+
+            return texto
+
+        except Exception as e:
+
+            print(f"Erro ao ler PDF: {e}")
+            return ""    

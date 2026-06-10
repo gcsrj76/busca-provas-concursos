@@ -27,7 +27,7 @@ class ViewExtracao(ctk.CTkFrame):
         self.entry_pasta = ctk.CTkEntry(self.frame_inputs, placeholder_text="Selecione a pasta onde estão os arquivos PDFs...")
         self.entry_pasta.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=(0, 15))
         
-        caminho_prova = os.path.join(os.path.expanduser("~"), "Área de trabalho","Concursos","PDFs FGV","Prova")        
+        caminho_prova = os.path.join(os.path.expanduser("~"), "Área de trabalho","Concursos","Teste","Prova")        
         self.entry_pasta.insert(0, caminho_prova)
        
         self.btn_procurar = ctk.CTkButton(self.frame_inputs, text="Procurar", width=100, command=self._selecionar_pasta)
@@ -44,7 +44,7 @@ class ViewExtracao(ctk.CTkFrame):
         self.entry_pasta_json.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=(0, 15))
         
         # Inicializa o campo de JSON com o mesmo caminho padrão por conveniência
-        caminho_json = os.path.join(os.path.expanduser("~"), "Área de trabalho","Concursos","JSONs")
+        caminho_json = os.path.join(os.path.expanduser("~"), "Área de trabalho","Concursos","Teste","JSONs")
         self.entry_pasta_json.insert(0, caminho_json)
         
         self.btn_procurar_json = ctk.CTkButton(self.frame_inputs_json, text="Procurar", width=100, command=self._selecionar_pasta_json)

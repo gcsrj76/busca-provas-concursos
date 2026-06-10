@@ -179,24 +179,38 @@ class ConcursoRepository:
         # Inicia a sessão com o banco de dados
         db = SessionLocal()
         try:
-            print("⏳ Buscando descrições no banco de dados...")
+            print("⏳ Buscando descrições e dados de coleta no banco de dados...")
             
-            # O .with_entities garante que o SQLAlchemy traga APENAS a coluna descrição, 
-            # evitando carregar o resto dos dados pesados (como as URLs) para a memória.
-            resultados = db.query(ArquivoProvaModel).with_entities(ArquivoProvaModel.descricao).all()
+            # Fazemos um JOIN com ConcursoModel para buscar a página e a ordem de coleta
+            # E alteramos o with_entities para trazer as 3 colunas necessárias
+            resultados = (
+                db.query(ArquivoProvaModel)
+                .join(ConcursoModel, ArquivoProvaModel.concurso_id == ConcursoModel.id)
+                .with_entities(
+                    ConcursoModel.pagina_coleta,
+                    ConcursoModel.ordem_coleta,
+                    ArquivoProvaModel.descricao
+                )
+                .all()
+            )
             
             total_registros = len(resultados)
             if total_registros == 0:
-                print("⚠️ A tabela 'arquivos_provas' está vazia. Nenhum arquivo gerado.")
+                print("⚠️ Nenhum registro encontrado. Nenhum arquivo gerado.")
                 return
 
             print(f"✍️ Gravando {total_registros} itens no arquivo '{nome_arquivo_txt}'...")
             
-            # Cria/Sobrescreve o arquivo txt salvando cada descrição em uma nova linha
+            # Cria/Sobrescreve o arquivo txt salvando cada descrição com o prefixo formatado
             with open(nome_arquivo_txt, "w", encoding="utf-8") as f:
-                for registro in resultados:
-                    # registro[0] pois o with_entities retorna uma tupla por linha
-                    f.write(f"{registro[0]}\n")
+                for pagina, ordem, descricao in resultados:
+                    # Trata possíveis valores nulos vindos do banco para não quebrar a formatação
+                    pag_formatada = f"{pagina or 0:02d}"
+                    ordem_formatada = f"{ordem or 0:04d}"
+                    
+                    if "prova" in descricao.lower() and not("gabarito" in descricao.lower()) and not ("edital" in descricao.lower()):
+                        # Escreve no formato: <00><0000><descricao>
+                        f.write(f"{pag_formatada}{ordem_formatada} - {descricao}.pdf\n")
                     
             print(f"🎉 Sucesso! Arquivo '{nome_arquivo_txt}' gerado na pasta corrente.")
             
