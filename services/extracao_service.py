@@ -38,7 +38,7 @@ class ListaQuestoesSchema(BaseModel):
 class ExtracaoService:
 
     @staticmethod
-    def extrair_questoes_json(pasta_pdf, pasta_json, materia, tamanho_bloco, callback_interface):        
+    def extrair_questoes_json(pasta_prova, pasta_gabarito, materia, tamanho_bloco, callback_interface):        
         """
         Orquestra o pipeline completo:
         1. Varre e ordena alfanumericamente os PDFs da pasta.
@@ -49,13 +49,12 @@ class ExtracaoService:
         """
         # Criar subdiretório baseado no nome da matéria
         nome_subpasta_materia = materia.replace(' ', '_').lower()
-        diretorio_saida_final = os.path.join(pasta_json, nome_subpasta_materia)
+        diretorio_saida_final = os.path.join(pasta_prova, "JSONs", nome_subpasta_materia)
         os.makedirs(diretorio_saida_final, exist_ok=True)
 
-        pasta_provas = os.path.join(pasta_pdf, "Prova")
-        pasta_gabaritos = os.path.join(pasta_pdf, "Gabarito")   
+        pasta_provas = os.path.join(pasta_prova, materia)
 
-        if not os.path.exists(pasta_provas) or not os.path.exists(pasta_gabaritos):
+        if not os.path.exists(pasta_provas) or not os.path.exists(pasta_gabarito):
             callback_interface("Pastas 'Prova' e/ou 'Gabarito' não encontradas no local informado.", 1.0, "Processamento abortado: pasta não localizada.\n")
             return 
 
@@ -134,7 +133,7 @@ class ExtracaoService:
             layout_final = {
                 "entidade": "Questao",
                 "materia": materia.upper(),
-                "ementa": "COMPLETA",
+                "ementa": f"BLOCO{numero_bloco_incremental:03d}",
                 "dados": dados_questoes_estruturadas,
             }
 
@@ -178,7 +177,8 @@ class ExtracaoService:
                     if texto_pag:
                         for linha in texto_pag.splitlines():
                             linha_f = linha.strip()
-                            if linha_f:
+                            
+                            if linha_f and not re.match(r'^\([A-E]\)', linha_f):
                                 contador_linhas_globais[linha_f] += 1
                 
                 linhas_repetidas_lixo = {linha for linha, qtd in contador_linhas_globais.items() if qtd > 2}
@@ -317,15 +317,36 @@ class ExtracaoService:
         return texto_final_limpo
 
     @staticmethod
-    def _converter_texto_para_estrutura_dados(conteudo_texto):
+    def _converter_texto_para_estrutura_dados(conteudo_texto, gabaritos):
         """
         Interpreta o texto mapeado da matéria e converte na árvore estrutural
         de dicionários (Enunciado, Referência, Respostas A-E).
+        Identifica a quebra de blocos quando a numeração da questão diminui
+        e extrai a resposta correta correlacionando com a lista de gabaritos estruturados.
         """
         linhas = [linha.strip() for linha in conteudo_texto.split("\n")]
         dados_questoes = []
         total_linhas = len(linhas)
         i = 0
+
+        # Controle de Blocos / Gabaritos estruturados
+        indice_gabarito_atual = 0
+        numero_questao_anterior = -1
+        mapeamento_gabarito_vigente = {}
+
+        # Função auxiliar interna para transformar a string "1;A\n2;B" em um dicionário rápido {1: "A", 2: "B"}
+        def _parse_gabarito_string(txt_gabarito):
+            mapa = {}
+            for l in txt_gabarito.strip().split("\n"):
+                if ";" in l:
+                    partes = l.split(";")
+                    if partes[0].isdigit():
+                        mapa[int(partes[0])] = partes[1].strip().upper()
+            return mapa
+
+        # Inicializa o mapa do primeiro gabarito, se existir na lista
+        if gabaritos and indice_gabarito_atual < len(gabaritos):
+            mapeamento_gabarito_vigente = _parse_gabarito_string(gabaritos[indice_gabarito_atual])
 
         while i < total_linhas:
             if linhas[i].startswith("(A)"):
@@ -388,13 +409,45 @@ class ExtracaoService:
                                 break
 
                             if linha_ref_atual:
-                                ...
                                 linhas_ref.insert(0, linha_ref_atual)                                
 
                             idx_busca_ref -= 1
 
                         texto_referencia_extraido = "\n".join(linhas_ref).strip()
 
+                # --- CONTROLE DE MUDANÇA DE BLOCO E VINCULAÇÃO DO SEU GABARITO ---
+                if idx_numero != -1:
+                    linha_num_quest = linhas[idx_numero]
+                    match_num = re.match(r"^(\d+)", linha_num_quest)
+                    if match_num:
+                        numero_questao_atual = int(match_num.group(1))
+
+                        # 1. Detecta se o número diminuiu (Queda detectada -> Mudança de Bloco de Prova)
+                        if numero_questao_anterior != -1 and numero_questao_atual < numero_questao_anterior:
+                            indice_gabarito_atual += 1
+                            # Avança para o próximo mapa de gabarito da lista
+                            if gabaritos and indice_gabarito_atual < len(gabaritos):
+                                mapeamento_gabarito_vigente = _parse_gabarito_string(gabaritos[indice_gabarito_atual])
+                            else:
+                                mapeamento_gabarito_vigente = {}
+
+                        # Atualiza o histórico de numeração
+                        numero_questao_anterior = numero_questao_atual
+
+                        # 2. Busca direta no dicionário do gabarito corrente
+                        if numero_questao_atual in mapeamento_gabarito_vigente:
+                            letra_correta = mapeamento_gabarito_vigente[numero_questao_atual]
+                            
+                            # Mapeia a letra para o índice correspondente no array do JSON (0 a 4)
+                            de_letra_para_indice = {"A": 0, "B": 1, "C": 2, "D": 3, "E": 4}
+                            if letra_correta in de_letra_para_indice:
+                                idx_correto = de_letra_para_indice[letra_correta]
+                                if idx_correto < len(respostas_temporarias):
+                                    respostas_temporarias[idx_correto]["eh_correta"] = 1
+                            # Se for uma questão anulada (ex: '*'), todas as alternativas mantêm 'eh_correta': 0 ou 
+                            # você pode tratar conforme as regras do seu simulador.
+
+                # Adiciona a estrutura finalizada
                 dados_questoes.append({
                     "enunciado": enunciado_extraido,
                     "texto_referencia": texto_referencia_extraido,

@@ -124,9 +124,10 @@ class PdfSearchService:
     def separar_por_materias(pasta_origem: str, pasta_destino: str, callback_interface) -> None:
         """
         Varre todos os PDFs da pasta de origem em ordem alfabética, identifica as matérias 
-        presentes no conteúdo e cria subpastas automaticamente dentro da própria pasta de origem.
+        presentes no conteúdo e cria subpastas automaticamente dentro da pasta de destino.
+        O nome original do arquivo é preservado na cópia.
         """
-        # APLICAÇÃO DA ORDEM ALFABÉTICA: Adicionado o sorted() envolvido na listagem
+        # Aplicação da ordem alfabética na listagem de PDFs
         arquivos = sorted([f for f in os.listdir(pasta_origem) if f.lower().endswith(".pdf")])
         total = len(arquivos)
 
@@ -141,11 +142,9 @@ class PdfSearchService:
             "Informática",
             "Analista de Tecnologia",
             "Conhecimentos Específicos"
-            ]
+        ]
 
         total_copias = 0
-
-        contador_incremental = 1
 
         for i, nome_arq in enumerate(arquivos):
             prog = (i + 1) / total
@@ -169,19 +168,15 @@ class PdfSearchService:
                             materias_detectadas.append(materia)
 
                 if materias_detectadas:
-
-                    novo_nome_arquivo = f"{contador_incremental:04d} - {nome_arq}"
-
                     for materia in materias_detectadas:
-                        # Cria a pasta da matéria diretamente dentro do diretório original dos PDFs
+                        # Cria a pasta da matéria diretamente dentro do diretório de destino
                         caminho_subpasta = os.path.join(pasta_destino, materia)
                         os.makedirs(caminho_subpasta, exist_ok=True)
 
-                        caminho_destino_final = os.path.join(caminho_subpasta, novo_nome_arquivo)
+                        # Mantém exatamente o nome original (nome_arq) na cópia destino
+                        caminho_destino_final = os.path.join(caminho_subpasta, nome_arq)
                         shutil.copy2(caminho_completo_origem, caminho_destino_final)
                         total_copias += 1  
-
-                    contador_incremental += 1                      
 
                     lista_formatada = ", ".join(materias_detectadas)
                     callback_interface(None, prog, f"📁 [{lista_formatada}] -> {nome_arq}\n")
@@ -194,5 +189,5 @@ class PdfSearchService:
         callback_interface(
             "Separação por Matérias Concluída!", 
             1.0, 
-            f"\n=== PROCESSO DE MATÉRIAS FINALIZADO ===\nSubpastas criadas diretamente em:\n{pasta_origem}\n"
+            f"\n=== PROCESSO DE MATÉRIAS FINALIZADO ===\nTotal de cópias distribuídas: {total_copias}\nArquivos organizados em:\n{pasta_destino}\n"
         )

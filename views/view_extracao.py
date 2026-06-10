@@ -24,31 +24,31 @@ class ViewExtracao(ctk.CTkFrame):
         self.label_pasta = ctk.CTkLabel(self.frame_inputs, text="Diretório dos PDFs Provas:")
         self.label_pasta.pack(padx=10, pady=(10, 2), anchor="w")
 
-        self.entry_pasta = ctk.CTkEntry(self.frame_inputs, placeholder_text="Selecione a pasta onde estão os arquivos PDFs...")
-        self.entry_pasta.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=(0, 15))
+        self.entry_pasta_prova = ctk.CTkEntry(self.frame_inputs, placeholder_text="Selecione a pasta onde estão os arquivos PDFs...")
+        self.entry_pasta_prova.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=(0, 15))
         
-        caminho_prova = os.path.join(os.path.expanduser("~"), "Área de trabalho","Concursos","Teste","Prova")        
-        self.entry_pasta.insert(0, caminho_prova)
+        caminho_prova = os.path.join(os.path.expanduser("~"), "Área de trabalho","Concursos","PDFs POR MATÉRIAS")        
+        self.entry_pasta_prova.insert(0, caminho_prova)
        
         self.btn_procurar = ctk.CTkButton(self.frame_inputs, text="Procurar", width=100, command=self._selecionar_pasta)
         self.btn_procurar.pack(side="right", padx=(5, 10), pady=(0, 15))
         
-        # --- NOVO: CARD/FRAME PARA SELEÇÃO DA PASTA DOS JSONs ---
-        self.frame_inputs_json = ctk.CTkFrame(self)
-        self.frame_inputs_json.pack(fill="x", padx=20, pady=5)
+        # --- NOVO: CARD/FRAME PARA SELEÇÃO DA PASTA DOS GABARITOS ---
+        self.frame_inputs_gabarito = ctk.CTkFrame(self)
+        self.frame_inputs_gabarito.pack(fill="x", padx=20, pady=5)
         
-        self.label_pasta_json = ctk.CTkLabel(self.frame_inputs_json, text="Diretório para geração dos Arquivos JSONs:")
-        self.label_pasta_json.pack(padx=10, pady=(10, 2), anchor="w")
+        self.label_pasta_gabarito = ctk.CTkLabel(self.frame_inputs_gabarito, text="Diretório para leitura dos Arquivos de Gabaritos:")
+        self.label_pasta_gabarito.pack(padx=10, pady=(10, 2), anchor="w")
 
-        self.entry_pasta_json = ctk.CTkEntry(self.frame_inputs_json, placeholder_text="Selecione a pasta onde os arquivos JSONs serão salvos...")
-        self.entry_pasta_json.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=(0, 15))
+        self.entry_pasta_gabarito = ctk.CTkEntry(self.frame_inputs_gabarito, placeholder_text="Selecione a pasta onde os arquivos JSONs serão salvos...")
+        self.entry_pasta_gabarito.pack(side="left", fill="x", expand=True, padx=(10, 5), pady=(0, 15))
         
-        # Inicializa o campo de JSON com o mesmo caminho padrão por conveniência
-        caminho_json = os.path.join(os.path.expanduser("~"), "Área de trabalho","Concursos","Teste","JSONs")
-        self.entry_pasta_json.insert(0, caminho_json)
+        # Inicializa o campo de Gabaritos com o mesmo caminho padrão por conveniência
+        caminho_gabarito = os.path.join(os.path.expanduser("~"), "Área de trabalho","Concursos","PDFs FGV","Gabarito")  
+        self.entry_pasta_gabarito.insert(0, caminho_gabarito)
         
-        self.btn_procurar_json = ctk.CTkButton(self.frame_inputs_json, text="Procurar", width=100, command=self._selecionar_pasta_json)
-        self.btn_procurar_json.pack(side="right", padx=(5, 10), pady=(0, 15))
+        self.btn_procurar_gabarito = ctk.CTkButton(self.frame_inputs_gabarito, text="Procurar", width=100, command=self._selecionar_pasta_gabarito)
+        self.btn_procurar_gabarito.pack(side="right", padx=(5, 10), pady=(0, 15))
         
         # --- CAMPO PARA AS RESTRIÇÕES DO GEMINI / TERMO MANUAL ---
         self.frame_restricoes = ctk.CTkFrame(self)
@@ -101,22 +101,22 @@ class ViewExtracao(ctk.CTkFrame):
         self.btn_extrair_json.pack(fill="x", padx=20, pady=(5, 20))
 
     def _selecionar_pasta(self):
-        pasta = filedialog.askdirectory(initialdir=self.entry_pasta.get().strip())
+        pasta = filedialog.askdirectory(initialdir=self.entry_pasta_prova.get().strip())
         if pasta:
-            self.entry_pasta.delete(0, tk.END)
-            self.entry_pasta.insert(0, pasta)
+            self.entry_pasta_prova.delete(0, tk.END)
+            self.entry_pasta_prova.insert(0, pasta)
 
-    def _selecionar_pasta_json(self):
-        pasta = filedialog.askdirectory(initialdir=self.entry_pasta_json.get().strip())
+    def _selecionar_pasta_gabarito(self):
+        pasta = filedialog.askdirectory(initialdir=self.entry_pasta_gabarito.get().strip())
         if pasta:
-            self.entry_pasta_json.delete(0, tk.END)
-            self.entry_pasta_json.insert(0, pasta)
+            self.entry_pasta_gabarito.delete(0, tk.END)
+            self.entry_pasta_gabarito.insert(0, pasta)
 
     def _bloquear_componentes(self):
         self.btn_extrair_json.configure(state="disabled")
         self.btn_procurar.configure(state="disabled")
-        self.btn_procurar_json.configure(state="disabled")
-        self.entry_pasta_json.configure(state="disabled")
+        self.btn_procurar_gabarito.configure(state="disabled")
+        self.entry_pasta_gabarito.configure(state="disabled")
         self.entry_restricao.configure(state="disabled")
         self.entry_blocos.configure(state="disabled")
         self.txt_log.delete("1.0", tk.END)
@@ -124,19 +124,19 @@ class ViewExtracao(ctk.CTkFrame):
     def _liberar_componentes(self):
         self.btn_extrair_json.configure(state="normal")
         self.btn_procurar.configure(state="normal")
-        self.btn_procurar_json.configure(state="normal")
-        self.entry_pasta_json.configure(state="normal")
+        self.btn_procurar_gabarito.configure(state="normal")
+        self.entry_pasta_gabarito.configure(state="normal")
         self.entry_restricao.configure(state="normal")
         self.entry_blocos.configure(state="normal")
 
     def _extrair_json_thread(self):
-        pasta_pdf = self.entry_pasta.get().strip()
-        pasta_json = self.entry_pasta_json.get().strip()
+        pasta_prova = self.entry_pasta_prova.get().strip()
+        pasta_gabarito = self.entry_pasta_gabarito.get().strip()
         materia = self.entry_restricao.get().strip()
         blocos_str = self.entry_blocos.get().strip()
         
-        if not pasta_pdf or not pasta_json or not materia:
-            self._atualizar_interface("Erro: A pasta de origem, de destino (JSON) e a Matéria Inicial são obrigatórias.", 0)
+        if not pasta_prova or not pasta_gabarito or not materia:
+            self._atualizar_interface("Erro: A pasta de provas, de gabaritos e a Matéria Inicial são obrigatórias.", 0)
             return     
 
         # Validação do tamanho do lote/bloco (padrão 1 caso o usuário não defina)
@@ -153,8 +153,7 @@ class ViewExtracao(ctk.CTkFrame):
 
         def worker():
             try:
-                # Nota: Lembre-se de adaptar o seu ExtracaoService para passar 'pasta_json' se necessário.
-                ExtracaoService.extrair_questoes_json(pasta_pdf, pasta_json, materia, tamanho_bloco, self._atualizar_interface)
+                ExtracaoService.extrair_questoes_json(pasta_prova, pasta_gabarito, materia, tamanho_bloco, self._atualizar_interface)
             except Exception as ex:
                 erro_msg = str(ex)
                 self.after(0, self._atualizar_interface, "Erro no processamento", 1.0, f"❌ Falha crítica: {erro_msg}\n")
