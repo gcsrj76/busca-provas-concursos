@@ -249,7 +249,7 @@ class ExtracaoService:
                                 prefixo_atual = ""
                                 conteudo_acumulado = []
                             continue                        
-                       
+                    
                         if linha_limpa in linhas_repetidas_lixo:
                             continue
                             
@@ -277,13 +277,8 @@ class ExtracaoService:
 
                         if se_inicio_bloco:
 
-                            novo_numero = None
-                            if se_inicio_bloco.group(1).isdigit():
-                                novo_numero = int(se_inicio_bloco.group(1))
-                                if novo_numero in mapeamento_imagens:
-                                    # Insere a tag da imagem ANTES do número da questão
-                                    tag = f"[TAG_IMAGEM_QUESTAO:{novo_numero}:{mapeamento_imagens[novo_numero]}]"
-                                    linhas_corrigidas.append(tag)
+                            # --- REMOVIDO: inserção de tag aqui ---
+                            # Agora as tags serão inseridas após a montagem de linhas_corrigidas
 
                             if prefixo_atual or conteudo_acumulado:
                                 texto_completo_bloco = " ".join(conteudo_acumulado)
@@ -307,6 +302,23 @@ class ExtracaoService:
                             linhas_corrigidas.append(texto_limpo_bloco)
                         else:
                             linhas_corrigidas.append(f"{prefixo_atual} {texto_limpo_bloco}".strip())
+
+                    # --- PÓS-PROCESSAMENTO: inserir tags antes das linhas que contêm os números ---
+                    if mapeamento_imagens:
+                        # Para cada número que tem imagem, procurar a linha que começa com ele
+                        # e inserir a tag como uma linha imediatamente anterior
+                        # Percorremos de trás para frente para não bagunçar os índices
+                        for num, nome_img in mapeamento_imagens.items():
+                            if num is None:
+                                continue  # ignora imagens não associadas
+                            padrao = re.compile(r'^' + str(num) + r'\s+')
+                            # Procurar a primeira ocorrência da linha que começa com o número
+                            for i, linha in enumerate(linhas_corrigidas):
+                                if padrao.match(linha):
+                                    tag = f"[TAG_IMAGEM_QUESTAO:{num}:{nome_img}]"
+                                    # Insere a tag antes da linha
+                                    linhas_corrigidas.insert(i, tag)
+                                    break  # insere apenas uma vez
 
                     texto_pag_limpo = "\n".join(linhas_corrigidas) + "\n"
                     texto_completo_arquivo += texto_pag_limpo                                
