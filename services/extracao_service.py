@@ -13,6 +13,7 @@ import unicodedata
 import uuid
 from PIL import Image
 import io
+import fitz
 
 
 class RespostaSchema(BaseModel):
@@ -55,10 +56,16 @@ class ExtracaoService:
         4. Filtra a matéria selecionada do conteúdo concatenado do bloco.
         5. Estrutura os dados encontrados no formato padrão JSON.
         """
-        # Criar subdiretório baseado no nome da matéria
+
         nome_subpasta_materia = materia.replace(' ', '_').lower()
+
+        # Local para armazenar os arquivos JSONs
         diretorio_saida_final = os.path.join(pasta_prova, "JSONs", nome_subpasta_materia)
         os.makedirs(diretorio_saida_final, exist_ok=True)
+
+        # Local para armazenar as imagens extraídas das questões
+        pasta_imagens = os.path.join(pasta_prova, "Imagens", nome_subpasta_materia)
+        os.makedirs(pasta_imagens, exist_ok=True)        
 
         pasta_provas = os.path.join(pasta_prova, materia)
 
@@ -98,7 +105,7 @@ class ExtracaoService:
             )
 
             # --- PASSO 1: EXTRAÇÃO DO TEXTO LIMPO INTEGRADO (DO LOTE ATUAL) ---
-            texto_limpo_lote = ExtracaoService._executar_texto_limpo_lote(pasta_provas, lote_atual, callback_interface)
+            texto_limpo_lote = ExtracaoService._executar_texto_limpo_lote(pasta_provas, pasta_imagens, lote_atual, callback_interface)
 
             # Gravação do arquivo de depuração do Bloco de Texto Limpo (Controle/Depuração requisitado)
             nome_arq_depuracao_txt = f"depuracao_bloco_{numero_bloco_incremental:04d}.txt"
@@ -156,12 +163,16 @@ class ExtracaoService:
         callback_interface("Processamento Concluído com Sucesso!", 1.0, "=== PIPELINE DE SUCESSO ABSOLUTO FINALIZADO ===\n")
 
     @staticmethod
-    def _executar_texto_limpo_lote(pasta_pdf, lote_arquivos, callback_interface):
+    def _executar_texto_limpo_lote(pasta_pdf, pasta_imagens, lote_arquivos, callback_interface):
         """
         Lógica interna nativa que extrai o texto de um conjunto específico de arquivos (Lote),
         preservando os tratamentos contra cabeçalhos, rodapés e regras de recortes de linhas.
-        Atualizada para reconhecer títulos dinâmicos/flexíveis de matérias.
+        Atualizada para reconhecer títulos dinâmicos/flexíveis de matérias e injetar tags de imagens.
         """
+        # Garante que a pasta de destino das imagens exista em disco
+        if pasta_imagens:
+            os.makedirs(pasta_imagens, exist_ok=True)
+
         # Usamos os mesmos padrões da filtragem para detecção de quebra de escopo
         regras_materias = {
             "Língua Portuguesa": re.compile(r'\bLíngua\s+Portuguesa\b'),
@@ -188,8 +199,9 @@ class ExtracaoService:
                 
                 # Primeira passada rápida no PDF para mapear o que se repete entre as páginas
                 for num_pag in range(len(leitor.pages)):
-                    if num_pag < 2:  # Pula as duas primeiras páginas conforme regra original
+                    if num_pag < 2:
                         continue
+
                     texto_pag = leitor.pages[num_pag].extract_text(extraction_mode="plain")
                     if texto_pag:
                         for linha in texto_pag.splitlines():
@@ -206,7 +218,8 @@ class ExtracaoService:
                     if num_pag < 2:
                         continue
 
-                    texto_pag = leitor.pages[num_pag].extract_text(extraction_mode="plain")
+                    pagina_objeto = leitor.pages[num_pag]
+                    texto_pag = pagina_objeto.extract_text(extraction_mode="plain")
                     if not texto_pag:
                         continue
 
@@ -215,6 +228,13 @@ class ExtracaoService:
                         continue                                                                        
                     
                     linhas_corrigidas = []
+
+                    # --- EXTRAÇÃO DE IMAGENS COM MAPEAMENTO POR QUESTÃO ---
+                    # Usa PyMuPDF para extrair imagens e identificar a questão associada
+                    mapeamento_imagens = ExtracaoService._extrair_imagens_com_pymupdf(
+                        pagina_objeto, num_pag, caminho_origem, pasta_imagens
+                    )
+
                     prefixo_atual = ""      
                     conteudo_acumulado = [] 
                     
@@ -256,6 +276,15 @@ class ExtracaoService:
                         se_inicio_bloco = re.match(r'^(\d+|\([A-E]\))', linha_limpa)
 
                         if se_inicio_bloco:
+
+                            novo_numero = None
+                            if se_inicio_bloco.group(1).isdigit():
+                                novo_numero = int(se_inicio_bloco.group(1))
+                                if novo_numero in mapeamento_imagens:
+                                    # Insere a tag da imagem ANTES do número da questão
+                                    tag = f"[TAG_IMAGEM_QUESTAO:{novo_numero}:{mapeamento_imagens[novo_numero]}]"
+                                    linhas_corrigidas.append(tag)
+
                             if prefixo_atual or conteudo_acumulado:
                                 texto_completo_bloco = " ".join(conteudo_acumulado)
                                 texto_limpo_bloco = " ".join(texto_completo_bloco.split())
@@ -437,6 +466,7 @@ class ExtracaoService:
                 enunciado_extraido = " ".join(linhas_enunciado).strip()
                 texto_referencia_extraido = ""
 
+                # --- AJUSTE DE ORDEM: Primeiro extraímos o texto de referência ---
                 if idx_numero > 0:
                     idx_busca_ref = idx_numero - 1
                     linhas_ref = []
@@ -457,6 +487,7 @@ class ExtracaoService:
                         texto_referencia_extraido = "\n".join(linhas_ref).strip()
 
                 # --- CONTROLE DE MUDANÇA DE BLOCO E VINCULAÇÃO DO SEU GABARITO ---
+                numero_questao_atual = None
                 if idx_numero != -1:
                     linha_num_quest = linhas[idx_numero]
                     match_num = re.match(r"^(\d+)", linha_num_quest)
@@ -485,14 +516,55 @@ class ExtracaoService:
                                 idx_correto = de_letra_para_indice[letra_correta]
                                 if idx_correto < len(respostas_temporarias):
                                     respostas_temporarias[idx_correto]["eh_correta"] = 1
-                            # Se for uma questão anulada (ex: '*'), todas as alternativas mantêm 'eh_correta': 0 ou 
-                            # você pode tratar conforme as regras do seu simulador.
 
-                # Adiciona a estrutura finalizada
+                # --- BUSCA PELA TAG DE IMAGEM COM VERIFICAÇÃO DO NÚMERO DA QUESTÃO ---
+                imagem_associada = ""
+                
+                # Função auxiliar para extrair imagem da tag com validação do número
+                def _extrair_imagem_da_tag(texto, numero_questao):
+                    # Padrão para tags com número: [TAG_IMAGEM_QUESTAO:numero:nome_arquivo]
+                    match_tag_com_numero = re.search(r"\[TAG_IMAGEM_QUESTAO:(\d+):(.*?)\]", texto)
+                    if match_tag_com_numero:
+                        numero_da_tag = int(match_tag_com_numero.group(1))
+                        nome_arquivo = match_tag_com_numero.group(2)
+                        # Verifica se o número da tag coincide com o número da questão atual
+                        if numero_questao is not None and numero_da_tag == numero_questao:
+                            return nome_arquivo, re.sub(r"\[TAG_IMAGEM_QUESTAO:\d+:.*?\]", "", texto)
+                        # Se não coincide, mantém a tag para outra questão
+                        return None, texto
+                    
+                    # Fallback: tag sem número (formato antigo)
+                    match_tag_sem_numero = re.search(r"\[TAG_IMAGEM_QUESTAO:(.*?)\]", texto)
+                    if match_tag_sem_numero:
+                        nome_arquivo = match_tag_sem_numero.group(1)
+                        # Verifica se o nome não contém ":" (para não confundir com o novo formato)
+                        if ":" not in nome_arquivo:
+                            texto_limpo = re.sub(r"\[TAG_IMAGEM_QUESTAO:.*?\]", "", texto)
+                            return nome_arquivo, texto_limpo
+                    
+                    return None, texto
+                
+                # Procura no enunciado
+                imagem_extraida, enunciado_extraido = _extrair_imagem_da_tag(
+                    enunciado_extraido, numero_questao_atual
+                )
+                if imagem_extraida:
+                    imagem_associada = imagem_extraida
+                
+                # Se não achou no enunciado, verifica no texto de referência
+                if not imagem_associada and texto_referencia_extraido:
+                    imagem_extraida, texto_referencia_extraido = _extrair_imagem_da_tag(
+                        texto_referencia_extraido, numero_questao_atual
+                    )
+                    if imagem_extraida:
+                        imagem_associada = imagem_extraida
+
+                # Adiciona a estrutura finalizada incluindo o campo 'imagem'
                 dados_questoes.append({
                     "enunciado": enunciado_extraido,
                     "texto_referencia": texto_referencia_extraido,
                     "respostas": respostas_temporarias,
+                    "imagem": imagem_associada
                 })
 
                 i = idx_busca_alts + 1
@@ -500,8 +572,7 @@ class ExtracaoService:
 
             i += 1
 
-        return dados_questoes
-    
+        return dados_questoes    
     @staticmethod
     def _obter_gabaritos(lista_arquivos_provas, pasta_localizacao_provas, pasta_localizacao_gabaritos):
         """
@@ -721,15 +792,108 @@ class ExtracaoService:
 
             print(f"Erro ao ler PDF: {e}")
             return ""    
-        
+
+
     @staticmethod
-    def _extrair_imagens_da_pagina(pagina_pdf, diretorio_saida) -> List[str]:
+    def _extrair_imagens_com_pymupdf(pagina_pdf, pagina_num, pdf_path, diretorio_saida) -> dict:
         """
-        Inspeciona os recursos visuais de uma página do pypdf, extrai as imagens
-        e as salva no diretório especificado com um nome gerado por hash aleatório.
-        Retorna uma lista com os nomes dos arquivos salvos.
+        Usa PyMuPDF para extrair imagens com coordenadas precisas e identificar
+        a questão associada.
         """
-        nomes_imagens_salvas = []
+        
+        mapeamento = {}
+        
+        # Abre o PDF com PyMuPDF
+        doc = fitz.open(pdf_path)
+        pagina = doc[pagina_num]
+        
+        # Obtém todas as imagens da página
+        imagens = pagina.get_images()
+        
+        for img_index, img_info in enumerate(imagens):
+            try:
+                # Extrai a imagem
+                xref = img_info[0]  # número de referência da imagem
+                base_imagem = doc.extract_image(xref)
+                
+                # Salva a imagem
+                nome_arquivo = f"{uuid.uuid4().hex}.{base_imagem['ext']}"
+                caminho_completo = os.path.join(diretorio_saida, nome_arquivo)
+                with open(caminho_completo, "wb") as f:
+                    f.write(base_imagem["image"])
+                
+                # Obtém a posição da imagem na página
+                # As imagens podem aparecer em múltiplos lugares, pegamos o primeiro
+                image_rects = pagina.get_image_rects(xref)
+                if image_rects:
+                    rect = image_rects[0]  # retângulo da imagem
+                    y_posicao = rect.y0  # coordenada Y do topo da imagem
+                    
+                    # Busca o número da questão acima da imagem
+                    # Extrai todo o texto da página com coordenadas
+                    text_blocks = pagina.get_text("dict")["blocks"]
+                    
+                    # Procura por números de questões antes da posição Y da imagem
+                    numero_questao = ExtracaoService._buscar_questao_acima(
+                        text_blocks, y_posicao
+                    )
+                    
+                    if numero_questao:
+                        mapeamento[numero_questao] = nome_arquivo
+                    else:
+                        # Fallback: tenta identificar pelo contexto
+                        mapeamento[None] = nome_arquivo
+                else:
+                    mapeamento[None] = nome_arquivo
+                    
+            except Exception as e:
+                print(f"Aviso: Falha ao extrair imagem {img_index}: {e}")
+        
+        doc.close()
+        return mapeamento
+
+    @staticmethod
+    def _buscar_questao_acima(text_blocks, y_posicao_imagem) -> Optional[int]:
+        """
+        Busca o número da questão mais próximo acima da posição Y da imagem.
+        """
+        numeros_questoes = []
+        
+        for block in text_blocks:
+            if "lines" in block:
+                for line in block["lines"]:
+                    for span in line["spans"]:
+                        # Coordenada Y do texto
+                        y_texto = span["bbox"][1]  # y0 (canto superior)
+                        texto = span["text"].strip()
+                        
+                        # Verifica se o texto está acima da imagem (y menor)
+                        if y_texto < y_posicao_imagem:
+                            # Verifica se é um número de questão (linha começando com número)
+                            match = re.match(r'^(\d+)', texto)
+                            if match:
+                                numeros_questoes.append({
+                                    'numero': int(match.group(1)),
+                                    'distancia': y_posicao_imagem - y_texto
+                                })
+        
+        # Se encontrou números, pega o mais próximo (menor distância)
+        if numeros_questoes:
+            numeros_questoes.sort(key=lambda x: x['distancia'])
+            return numeros_questoes[0]['numero']
+        
+        return None
+  
+    """
+    @staticmethod
+    def _extrair_imagens_da_pagina(pagina_pdf, diretorio_saida) -> dict:
+
+       # Inspeciona os recursos visuais de uma página do pypdf, extrai as imagens
+       # e as salva no diretório especificado.
+       # Retorna um dicionário: {numero_questao: nome_arquivo} 
+       # (se conseguir identificar) ou {None: nome_arquivo} (fallback).
+    
+        mapeamento = {}
         
         # Verifica se a página possui dicionário de recursos e XObjects
         if "/Resources" in pagina_pdf and "/XObject" in pagina_pdf["/Resources"]:
@@ -739,23 +903,30 @@ class ExtracaoService:
                 obj_atual = x_object[obj_id]
                 
                 # Verifica se o objeto interno é de fato uma imagem
-                if obj_atual["/Subtype"] == "/Image":
+                if obj_atual.get("/Subtype") == "/Image":
                     try:
-                        # Obtém os dados binários puros da imagem
+                        # Obtém os dados binários já decodificados
                         dados_imagem = obj_atual.get_data()
                         
-                        # Gera um nome único via UUID (Hash aleatório seguro)
+                        # Gera nome único
                         nome_arquivo = f"{uuid.uuid4().hex}.jpg"
                         caminho_completo = os.path.join(diretorio_saida, nome_arquivo)
                         
-                        # Converte os bytes e salva o arquivo utilizando o Pillow
-                        imagem_pil = Image.open(io.BytesIO(dados_imagem))
-                        imagem_pil.save(caminho_completo, format="JPEG")
+                        # Salva a imagem (usando o método adaptado anteriormente)
+                        ExtracaoService._salvar_imagem(obj_atual, dados_imagem, caminho_completo)
                         
-                        nomes_imagens_salvas.append(nome_arquivo)
+                        # Tenta identificar o número da questão associada
+                        numero_questao = ExtracaoService._identificar_questao_acima_imagem(
+                            pagina_pdf, obj_atual, obj_id
+                        )
+                        
+                        if numero_questao:
+                            mapeamento[numero_questao] = nome_arquivo
+                        else:
+                            mapeamento[None] = nome_arquivo  # fallback
+                            
                     except Exception as e:
-                        # Caso uma imagem específica falhe (ex: compressão incompatível),
-                        # o pipeline não quebra
                         print(f"Aviso: Falha ao extrair objeto de imagem {obj_id}: {e}")
-                        
-        return nomes_imagens_salvas        
+        
+        return mapeamento        
+    """
