@@ -231,7 +231,7 @@ class ExtracaoService:
 
                     # --- EXTRAÇÃO DE IMAGENS COM MAPEAMENTO POR QUESTÃO ---
                     # Usa PyMuPDF para extrair imagens e identificar a questão associada
-                    mapeamento_imagens = ExtracaoService._extrair_imagens_com_pymupdf(
+                    mapeamento_imagens = ExtracaoService._extrair_imagens_da_pagina(
                         pagina_objeto, num_pag, caminho_origem, pasta_imagens
                     )
 
@@ -795,138 +795,150 @@ class ExtracaoService:
 
 
     @staticmethod
-    def _extrair_imagens_com_pymupdf(pagina_pdf, pagina_num, pdf_path, diretorio_saida) -> dict:
+    def _extrair_imagens_da_pagina(pagina_pdf, pagina_num, pdf_path, diretorio_saida) -> dict:
         """
-        Usa PyMuPDF para extrair imagens com coordenadas precisas e identificar
-        a questão associada.
+        Extrai imagens e as associa à questão correta usando coordenadas X e Y,
+        com separação por colunas (metade esquerda/direita da página).
+        Fallback por ordem para imagens não associadas.
         """
-        
+        import fitz
         mapeamento = {}
-        
-        # Abre o PDF com PyMuPDF
+        imagens_pendentes = []  # (nome_arquivo, x_centro, y_pos, xref)
+
         doc = fitz.open(pdf_path)
         pagina = doc[pagina_num]
-        
-        # Obtém todas as imagens da página
+        largura_pagina = pagina.rect.width
+        ponto_medio_x = largura_pagina / 2
+
+        # Obtém todas as imagens
         imagens = pagina.get_images()
-        
-        for img_index, img_info in enumerate(imagens):
+
+        for img_info in imagens:
             try:
-                # Extrai a imagem
-                xref = img_info[0]  # número de referência da imagem
+                xref = img_info[0]
                 base_imagem = doc.extract_image(xref)
-                
-                # Salva a imagem
+
                 nome_arquivo = f"{uuid.uuid4().hex}.{base_imagem['ext']}"
                 caminho_completo = os.path.join(diretorio_saida, nome_arquivo)
                 with open(caminho_completo, "wb") as f:
                     f.write(base_imagem["image"])
-                
-                # Obtém a posição da imagem na página
-                # As imagens podem aparecer em múltiplos lugares, pegamos o primeiro
+
+                # Obtém o retângulo da imagem
                 image_rects = pagina.get_image_rects(xref)
                 if image_rects:
-                    rect = image_rects[0]  # retângulo da imagem
-                    y_posicao = rect.y0  # coordenada Y do topo da imagem
-                    
-                    # Busca o número da questão acima da imagem
-                    # Extrai todo o texto da página com coordenadas
-                    text_blocks = pagina.get_text("dict")["blocks"]
-                    
-                    # Procura por números de questões antes da posição Y da imagem
-                    numero_questao = ExtracaoService._buscar_questao_acima(
-                        text_blocks, y_posicao
-                    )
-                    
-                    if numero_questao:
-                        mapeamento[numero_questao] = nome_arquivo
+                    rect = image_rects[0]
+                    x_centro = (rect.x0 + rect.x1) / 2
+                    y_pos = rect.y0  # topo da imagem
+
+                    # Determina a metade da página em que a imagem está
+                    if x_centro < ponto_medio_x:
+                        metade = "esquerda"
                     else:
-                        # Fallback: tenta identificar pelo contexto
-                        mapeamento[None] = nome_arquivo
+                        metade = "direita"
+
+                    # Extrai todos os números de questões com coordenadas
+                    text_blocks = pagina.get_text("dict")["blocks"]
+                    numeros_info = ExtracaoService._extrair_numeros_com_coordenadas(text_blocks)
+
+                    # Associa a imagem ao número mais próximo (na mesma metade)
+                    numero_questao = ExtracaoService._encontrar_numero_mais_proximo(
+                        numeros_info, x_centro, y_pos, metade, ponto_medio_x
+                    )
+
+                    if numero_questao is not None:
+                        mapeamento[numero_questao] = nome_arquivo
+                        print(f"Associação por coordenadas (X,Y, metade): imagem {nome_arquivo} -> questão {numero_questao}")
+                    else:
+                        imagens_pendentes.append((nome_arquivo, x_centro, y_pos, xref))
                 else:
-                    mapeamento[None] = nome_arquivo
-                    
+                    imagens_pendentes.append((nome_arquivo, None, None, xref))
+
             except Exception as e:
-                print(f"Aviso: Falha ao extrair imagem {img_index}: {e}")
-        
+                print(f"Aviso: Falha ao extrair imagem: {e}")
+                if 'nome_arquivo' in locals():
+                    imagens_pendentes.append((nome_arquivo, None, None, None))
+
         doc.close()
+
+        # Fallback para imagens pendentes (usando ordem de aparecimento)
+        if imagens_pendentes:
+            # Extrai o texto da página com PdfReader (modo plain) para ordem linear
+            texto_pagina = pagina_pdf.extract_text(extraction_mode="plain")
+            if texto_pagina:
+                # Encontra todos os números de questões na ordem em que aparecem
+                numeros_questoes = re.findall(r'^(\d+)\s+[A-Z]', texto_pagina, re.MULTILINE)
+                numeros_questoes = [int(n) for n in numeros_questoes]
+
+                # Remove números já associados
+                numeros_ja_associados = set(mapeamento.keys())
+                numeros_disponiveis = [n for n in numeros_questoes if n not in numeros_ja_associados]
+
+                # Associa na ordem das imagens pendentes
+                for i, (nome_img, _, _, _) in enumerate(imagens_pendentes):
+                    if i < len(numeros_disponiveis):
+                        numero_associado = numeros_disponiveis[i]
+                        mapeamento[numero_associado] = nome_img
+                        print(f"Fallback por ordem: imagem {nome_img} -> questão {numero_associado}")
+                    else:
+                        mapeamento[None] = nome_img
+
         return mapeamento
 
     @staticmethod
-    def _buscar_questao_acima(text_blocks, y_posicao_imagem) -> Optional[int]:
+    def _extrair_numeros_com_coordenadas(text_blocks):
         """
-        Busca o número da questão mais próximo acima da posição Y da imagem.
+        Extrai todos os números de questões com suas coordenadas X e Y.
+        Retorna lista de dicionários: {'numero': int, 'x': float, 'y': float}
         """
-        numeros_questoes = []
-        
+        numeros = []
         for block in text_blocks:
             if "lines" in block:
                 for line in block["lines"]:
                     for span in line["spans"]:
-                        # Coordenada Y do texto
-                        y_texto = span["bbox"][1]  # y0 (canto superior)
                         texto = span["text"].strip()
-                        
-                        # Verifica se o texto está acima da imagem (y menor)
-                        if y_texto < y_posicao_imagem:
-                            # Verifica se é um número de questão (linha começando com número)
-                            match = re.match(r'^(\d+)', texto)
-                            if match:
-                                numeros_questoes.append({
-                                    'numero': int(match.group(1)),
-                                    'distancia': y_posicao_imagem - y_texto
-                                })
-        
-        # Se encontrou números, pega o mais próximo (menor distância)
-        if numeros_questoes:
-            numeros_questoes.sort(key=lambda x: x['distancia'])
-            return numeros_questoes[0]['numero']
-        
-        return None
-  
-    """
-    @staticmethod
-    def _extrair_imagens_da_pagina(pagina_pdf, diretorio_saida) -> dict:
-
-       # Inspeciona os recursos visuais de uma página do pypdf, extrai as imagens
-       # e as salva no diretório especificado.
-       # Retorna um dicionário: {numero_questao: nome_arquivo} 
-       # (se conseguir identificar) ou {None: nome_arquivo} (fallback).
-    
-        mapeamento = {}
-        
-        # Verifica se a página possui dicionário de recursos e XObjects
-        if "/Resources" in pagina_pdf and "/XObject" in pagina_pdf["/Resources"]:
-            x_object = pagina_pdf["/Resources"]["/XObject"].get_object()
-            
-            for obj_id in x_object:
-                obj_atual = x_object[obj_id]
-                
-                # Verifica se o objeto interno é de fato uma imagem
-                if obj_atual.get("/Subtype") == "/Image":
-                    try:
-                        # Obtém os dados binários já decodificados
-                        dados_imagem = obj_atual.get_data()
-                        
-                        # Gera nome único
-                        nome_arquivo = f"{uuid.uuid4().hex}.jpg"
-                        caminho_completo = os.path.join(diretorio_saida, nome_arquivo)
-                        
-                        # Salva a imagem (usando o método adaptado anteriormente)
-                        ExtracaoService._salvar_imagem(obj_atual, dados_imagem, caminho_completo)
-                        
-                        # Tenta identificar o número da questão associada
-                        numero_questao = ExtracaoService._identificar_questao_acima_imagem(
-                            pagina_pdf, obj_atual, obj_id
-                        )
-                        
-                        if numero_questao:
-                            mapeamento[numero_questao] = nome_arquivo
+                        # Padrão: número seguido de espaço e letra maiúscula (ex: "31 O")
+                        match = re.match(r'^(\d+)\s+[A-Z]', texto)
+                        if match:
+                            numero = int(match.group(1))
+                            if 1 <= numero <= 100:
+                                x = span["bbox"][0]  # x0
+                                y = span["bbox"][1]  # y0
+                                numeros.append({'numero': numero, 'x': x, 'y': y})
                         else:
-                            mapeamento[None] = nome_arquivo  # fallback
-                            
-                    except Exception as e:
-                        print(f"Aviso: Falha ao extrair objeto de imagem {obj_id}: {e}")
-        
-        return mapeamento        
-    """
+                            # Tenta apenas número (ex: "31")
+                            match2 = re.match(r'^(\d+)$', texto)
+                            if match2:
+                                numero = int(match2.group(1))
+                                if 1 <= numero <= 100:
+                                    x = span["bbox"][0]
+                                    y = span["bbox"][1]
+                                    numeros.append({'numero': numero, 'x': x, 'y': y})
+        return numeros
+
+    @staticmethod
+    def _encontrar_numero_mais_proximo(numeros_info, x_imagem, y_imagem, metade, ponto_medio_x):
+        """
+        Encontra o número de questão mais próximo acima da imagem,
+        considerando a mesma metade da página (esquerda ou direita).
+        """
+        # Filtra números que estão acima da imagem (y < y_imagem)
+        candidatos = [n for n in numeros_info if n['y'] < y_imagem]
+        if not candidatos:
+            return None
+
+        # Filtra pela metade correspondente
+        if metade == "esquerda":
+            candidatos_mesma_metade = [n for n in candidatos if n['x'] < ponto_medio_x]
+        else:
+            candidatos_mesma_metade = [n for n in candidatos if n['x'] >= ponto_medio_x]
+
+        if not candidatos_mesma_metade:
+            # Se não houver números na mesma metade, tenta o mais próximo horizontalmente (fallback)
+            candidatos.sort(key=lambda n: abs(n['x'] - x_imagem))
+            if candidatos and abs(candidatos[0]['x'] - x_imagem) < 200:  # margem ampla
+                return candidatos[0]['numero']
+            return None
+
+        # Entre os da mesma metade, pega o mais próximo verticalmente
+        candidatos_mesma_metade.sort(key=lambda n: y_imagem - n['y'])
+        return candidatos_mesma_metade[0]['numero']
