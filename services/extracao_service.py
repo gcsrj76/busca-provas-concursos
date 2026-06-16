@@ -10,6 +10,10 @@ import json
 from pypdf import PdfReader
 from collections import Counter
 import unicodedata
+import uuid
+from PIL import Image
+import io
+
 
 class RespostaSchema(BaseModel):
     texto: str = Field(description="O texto descritivo da alternativa.")
@@ -17,9 +21,13 @@ class RespostaSchema(BaseModel):
 
 class QuestaoSchema(BaseModel):
     enunciado: str = Field(description="O enunciado ou pergunta da questão.")
-    texto_referencia: Optional[str] = Field(
+    texto_referencia: Optional[str] = Field(        
         default="", 
-        description="Texto de apoio, crônica, poesia ou aviso que antecede a questão (ex: 'Atenção: o texto a seguir refere-se... Os alunos de hoje...'). Se a questão não tiver texto base associado diretamente na página, deixe este campo vazio."
+        description="Texto de apoio, crônica, poesia ou aviso que antecede a questão..."
+    )
+    imagem: Optional[str] = Field(
+        default="", 
+        description="Nome do arquivo de imagem extraído associado ao enunciado (com extensão), ou vazio se não houver."
     )
     respostas: List[RespostaSchema] = Field(description="Lista contendo exatamente as alternativas da questão (Geralmente de A a E).")
 
@@ -121,7 +129,7 @@ class ExtracaoService:
                 continue
 
             # --- PASSO 3: MONTAGEM DO GABARITO PARA O JSON ---
-            gabaritos = ExtracaoService._obter_gabaritos(lote_atual, pasta_provas, pasta_gabaritos)
+            gabaritos = ExtracaoService._obter_gabaritos(lote_atual, pasta_provas, pasta_gabarito)
 
             # --- PASSO 4: ESTRUTURAÇÃO DO TEXTO DA MATÉRIA PARA JSON ---
             dados_questoes_estruturadas = ExtracaoService._converter_texto_para_estrutura_dados(texto_filtrado_materia, gabaritos)
@@ -152,12 +160,21 @@ class ExtracaoService:
         """
         Lógica interna nativa que extrai o texto de um conjunto específico de arquivos (Lote),
         preservando os tratamentos contra cabeçalhos, rodapés e regras de recortes de linhas.
+        Atualizada para reconhecer títulos dinâmicos/flexíveis de matérias.
         """
-        materias_obrigatorias = {
-            "Língua Portuguesa", "Legislação", "Raciocínio Lógico", 
-            "Informática", "Analista de Tecnologia", "Direito", 
-            "Conhecimentos Específicos", "Matemática", "Língua Inglesa", 
-            "História", "Geografia"
+        # Usamos os mesmos padrões da filtragem para detecção de quebra de escopo
+        regras_materias = {
+            "Língua Portuguesa": re.compile(r'\bLíngua\s+Portuguesa\b'),
+            "Informática": re.compile(r'\bInformática\b'),
+            "Analista de Tecnologia": re.compile(r'\bAnalista\s+de\s+Tecnologia\b'),
+            "Conhecimentos Específicos": re.compile(r'\bConhecimentos\s+Específicos\b'),
+            "Matemática": re.compile(r'\bMatemática\b'),
+            "Língua Inglesa": re.compile(r'\bLíngua\s+Inglesa\b'),
+            "História": re.compile(r'\bHistória\b'),
+            "Geografia": re.compile(r'\bGeografia\b'),
+            "Direito": re.compile(r'\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
+            "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')
         }
         
         texto_acumulado_lote = ""
@@ -178,6 +195,7 @@ class ExtracaoService:
                         for linha in texto_pag.splitlines():
                             linha_f = linha.strip()
                             
+                            # Mantém a sua trava inteligente: alternativas nunca viram lixo
                             if linha_f and not re.match(r'^\([A-E]\)', linha_f):
                                 contador_linhas_globais[linha_f] += 1
                 
@@ -218,7 +236,10 @@ class ExtracaoService:
                         if re.search(r'.*Tipo.*Página.*', linha_limpa):
                             continue 
                         
-                        if linha_limpa in materias_obrigatorias:
+                        # MODIFICAÇÃO AQUI: Verifica se a linha casa com alguma das matérias (incluindo as flexíveis)
+                        eh_linha_de_materia = any(regex.match(linha_limpa) for regex in regras_materias.values())
+                        
+                        if eh_linha_de_materia:
                             if prefixo_atual or conteudo_acumulado:
                                 texto_completo_bloco = " ".join(conteudo_acumulado)
                                 texto_limpo_bloco = " ".join(texto_completo_bloco.split())
@@ -271,26 +292,45 @@ class ExtracaoService:
     @staticmethod
     def _executar_filtragem_materia(texto_completo, materia_inicial, callback_interface):
         """
-        Isola os blocos do texto cumulativo correspondentes à matéria informada, 
-        usando a lógica idêntica de verificação por Regex de limitação de escopo (Corte).
+        Isola os blocos do texto cumulativo correspondentes à matéria informada.
+        Utiliza regras rígidas de isolamento (\b) para termos exatos e permite
+        variações sequenciais para Direito, Raciocínio Lógico e Legislação.
         """
-        lista_materias_possiveis = [
-            "Língua Portuguesa", "Legislação", "Raciocínio Lógico", 
-            "Informática", "Analista de Tecnologia", "Direito", 
-            "Conhecimentos Específicos", "Matemática", "Língua Inglesa", 
-            "História", "Geografia"
-        ]
+        # Mapeamento idêntico de regras para garantir que os limites de corte (fim) sejam precisos
+        regras_materias = {
+            "Língua Portuguesa": r'\bLíngua\s+Portuguesa\b',
+            "Informática": r'\bInformática\b',
+            "Analista de Tecnologia": r'\bAnalista\s+de\s+Tecnologia\b',
+            "Conhecimentos Específicos": r'\bConhecimentos\s+Específicos\b',
+            "Matemática": r'\bMatemática\b',
+            "Língua Inglesa": r'\bLíngua\s+Inglesa\b',
+            "História": r'\bHistória\b',
+            "Geografia": r'\bGeografia\b',
+            "Direito": r'\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*',
+            "Raciocínio Lógico": r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*',
+            "Legislação": r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'
+        }
 
-        termo_inicio_esc = re.escape(materia_inicial)
-        padrao_inicio = fr"^\s*{termo_inicio_esc}\s*$"
-        
-        matches_inicio = list(re.finditer(padrao_inicio, texto_completo, re.MULTILINE))
+        # 1. Determina a Regex de INÍCIO para a matéria selecionada
+        if materia_inicial in regras_materias:
+            # Força que a linha contenha apenas o padrão da matéria (com suas tolerâncias se for o caso)
+            padrao_inicio = fr"^\s*{regras_materias[materia_inicial]}\s*$"
+        else:
+            padrao_inicio = fr"^\s*\b{reft(re.escape(materia_inicial))}\b\s*$"
+
+        matches_inicio = list(re.finditer(padrao_inicio, texto_completo, re.MULTILINE | re.IGNORECASE))
         
         if not matches_inicio:
             return ""
 
-        materias_corte = [m for m in lista_materias_possiveis if m.lower() != materia_inicial.lower()]
-        padrao_fim = r"^\s*(" + "|".join([re.escape(m) for m in materias_corte]) + r")(?:\s+[^\s]+)?\s*$"
+        # 2. Determina as Regex de FIM (todas as OUTRAS matérias que servem como ponto de corte)
+        materias_corte_padroes = [
+            padrao for nome, padrao in regras_materias.items() 
+            if nome.lower() != materia_inicial.lower()
+        ]
+        
+        # Junta todas as outras matérias em um "OR" comercial (ex: (?:^Informática$|^Direito.*$))
+        padrao_fim = r"^\s*(?:" + "|".join(materias_corte_padroes) + r")\s*$"
 
         texto_acumulado_materia = ""
         total_blocos = len(matches_inicio)
@@ -304,7 +344,8 @@ class ExtracaoService:
             else:
                 sub_texto_busca = texto_completo[ponto_inicio_conteudo:]
 
-            fim_match = re.search(padrao_fim, sub_texto_busca, re.MULTILINE)
+            # Procura se alguma outra matéria surgiu no meio do caminho para cortar o bloco
+            fim_match = re.search(padrao_fim, sub_texto_busca, re.MULTILINE | re.IGNORECASE)
             
             if fim_match:
                 bloco_isolado = sub_texto_busca[:fim_match.start()]
@@ -680,3 +721,41 @@ class ExtracaoService:
 
             print(f"Erro ao ler PDF: {e}")
             return ""    
+        
+    @staticmethod
+    def _extrair_imagens_da_pagina(pagina_pdf, diretorio_saida) -> List[str]:
+        """
+        Inspeciona os recursos visuais de uma página do pypdf, extrai as imagens
+        e as salva no diretório especificado com um nome gerado por hash aleatório.
+        Retorna uma lista com os nomes dos arquivos salvos.
+        """
+        nomes_imagens_salvas = []
+        
+        # Verifica se a página possui dicionário de recursos e XObjects
+        if "/Resources" in pagina_pdf and "/XObject" in pagina_pdf["/Resources"]:
+            x_object = pagina_pdf["/Resources"]["/XObject"].get_object()
+            
+            for obj_id in x_object:
+                obj_atual = x_object[obj_id]
+                
+                # Verifica se o objeto interno é de fato uma imagem
+                if obj_atual["/Subtype"] == "/Image":
+                    try:
+                        # Obtém os dados binários puros da imagem
+                        dados_imagem = obj_atual.get_data()
+                        
+                        # Gera um nome único via UUID (Hash aleatório seguro)
+                        nome_arquivo = f"{uuid.uuid4().hex}.jpg"
+                        caminho_completo = os.path.join(diretorio_saida, nome_arquivo)
+                        
+                        # Converte os bytes e salva o arquivo utilizando o Pillow
+                        imagem_pil = Image.open(io.BytesIO(dados_imagem))
+                        imagem_pil.save(caminho_completo, format="JPEG")
+                        
+                        nomes_imagens_salvas.append(nome_arquivo)
+                    except Exception as e:
+                        # Caso uma imagem específica falhe (ex: compressão incompatível),
+                        # o pipeline não quebra
+                        print(f"Aviso: Falha ao extrair objeto de imagem {obj_id}: {e}")
+                        
+        return nomes_imagens_salvas        

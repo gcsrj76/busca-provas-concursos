@@ -1,5 +1,6 @@
 import os
 import shutil
+import re
 
 try:
     import pypdf
@@ -124,10 +125,9 @@ class PdfSearchService:
     def separar_por_materias(pasta_origem: str, pasta_destino: str, callback_interface) -> None:
         """
         Varre todos os PDFs da pasta de origem em ordem alfabética, identifica as matérias 
-        presentes no conteúdo e cria subpastas automaticamente dentro da pasta de destino.
-        O nome original do arquivo é preservado na cópia.
+        presentes no conteúdo utilizando regras rígidas de isolamento para termos exatos 
+        e variação permitida para matérias de ampla abrangência.
         """
-        # Aplicação da ordem alfabética na listagem de PDFs
         arquivos = sorted([f for f in os.listdir(pasta_origem) if f.lower().endswith(".pdf")])
         total = len(arquivos)
 
@@ -135,14 +135,26 @@ class PdfSearchService:
             callback_interface("Nenhum PDF encontrado na pasta.", 1.0, "Processamento vazio.\n")
             return
 
-        materias_alvo = [
-            "Língua Portuguesa",
-            "Legislação",
-            "Raciocínio Lógico",
-            "Informática",
-            "Analista de Tecnologia",
-            "Conhecimentos Específicos"
-        ]
+        # 1. Definição das Regras de Regex para cada Matéria Alvo
+        # Matérias estritamente isoladas utilizam \b no início e no fim do termo
+        # Matérias flexíveis aceitam variações sequenciais complementares
+        regras_materias = {
+            "Língua Portuguesa": re.compile(r'\bLíngua\s+Portuguesa\b'),
+            "Informática": re.compile(r'\bInformática\b'),
+            "Analista de Tecnologia": re.compile(r'\bAnalista\s+de\s+Tecnologia\b'),
+            "Conhecimentos Específicos": re.compile(r'\bConhecimentos\s+Específicos\b'),
+            "Matemática": re.compile(r'\bMatemática\b'),
+            "Língua Inglesa": re.compile(r'\bLíngua\s+Inglesa\b'),
+            "História": re.compile(r'\bHistória\b'),
+            "Geografia": re.compile(r'\bGeografia\b'),
+            
+            # Casos com variação (Permite: Direito, Direito Administrativo, Direito Constitucional, etc.)
+            "Direito": re.compile(r'\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            
+            # Casos com variação (Permite: Raciocínio Lógico, Raciocínio Lógico-Matemático, etc.)
+            "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
+            "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')
+        }
 
         total_copias = 0
 
@@ -158,22 +170,23 @@ class PdfSearchService:
                     leitor = pypdf.PdfReader(f)
                     texto_completo_pdf = ""
                     
+                    # Limita a leitura às primeiras páginas para performance (onde ficam os índices/cabeçalhos)
+                    # ou varre tudo se as matérias puderem surgir no meio. Mantendo varredura completa:
                     for pagina in leitor.pages:
                         txt = pagina.extract_text()
                         if txt:
                             texto_completo_pdf += txt
 
-                    for materia in materias_alvo:
-                        if materia in texto_completo_pdf:
-                            materias_detectadas.append(materia)
+                    # 2. Varredura baseada em Regex estruturada
+                    for nome_materia, regex_teste in regras_materias.items():
+                        if regex_teste.search(texto_completo_pdf):
+                            materias_detectadas.append(nome_materia)
 
                 if materias_detectadas:
                     for materia in materias_detectadas:
-                        # Cria a pasta da matéria diretamente dentro do diretório de destino
                         caminho_subpasta = os.path.join(pasta_destino, materia)
                         os.makedirs(caminho_subpasta, exist_ok=True)
 
-                        # Mantém exatamente o nome original (nome_arq) na cópia destino
                         caminho_destino_final = os.path.join(caminho_subpasta, nome_arq)
                         shutil.copy2(caminho_completo_origem, caminho_destino_final)
                         total_copias += 1  

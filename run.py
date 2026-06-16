@@ -8,3 +8,8 @@ if __name__ == "__main__":
     # Inicia a aplicação utilizando a nova arquitetura modular por abas internas
     app = ScraperApp()
     app.mainloop()
+
+    # TO DO LIST
+    # CORRIGIR (IMPORTAÇÃO) SEPARAÇÃO DE PALAVRAS, INDEVIDAS;
+    # CORRIGIR (IMPORTAÇÃO), OUTRAS MATÉRIAS SENDO CARREGADAS;
+    # IMPLEMENTAR LEITURA/CAPTURA DE IMAGENS NA IMPORTAÇÃO;
