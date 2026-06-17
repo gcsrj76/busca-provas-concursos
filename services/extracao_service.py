@@ -418,7 +418,7 @@ class ExtracaoService:
 
         texto_final_limpo = re.sub(r'(\n\s*){3,}', '\n\n', texto_acumulado_materia).strip()
         return texto_final_limpo
-
+    
     @staticmethod
     def _converter_texto_para_estrutura_dados(conteudo_texto, gabaritos):
         """
@@ -481,15 +481,24 @@ class ExtracaoService:
 
                 while idx_busca_enunciado >= 0:
                     linha_atual = linhas[idx_busca_enunciado]
+                    
+                    if linha_atual.startswith("(E)"):
+                        break  # Barreira lógica: chegamos nas alternativas da questão anterior
+
                     match_linha_iniciada_por_num = re.match(r"^(\d+)\s*(.*)$", linha_atual)
 
                     if match_linha_iniciada_por_num:
+                        # Sempre que achamos um número, atualizamos como o candidato a ser o início da questão.
+                        # Ao fazer isso, se houver linhas acumuladas abaixo dele que pertenciam a um número falso (como itens I, II),
+                        # reinserimos o texto restante tratado anteriormente no acumulador de linhas.
+                        if idx_numero != -1 and texto_restante_da_linha_do_numero:
+                            linhas_enunciado.insert(0, texto_restante_da_linha_do_numero)
+
                         idx_numero = idx_busca_enunciado
                         texto_restante_da_linha_do_numero = match_linha_iniciada_por_num.group(2).strip()
-                        break
-                    
-                    if linha_atual:
-                        linhas_enunciado.insert(0, linha_atual)
+                    else:
+                        if linha_atual:
+                            linhas_enunciado.insert(0, linha_atual)
 
                     idx_busca_enunciado -= 1
 
@@ -499,25 +508,22 @@ class ExtracaoService:
                 enunciado_extraido = " ".join(linhas_enunciado).strip()
                 texto_referencia_extraido = ""
 
-                # --- AJUSTE DE ORDEM: Primeiro extraímos o texto de referência ---
+                # --- AJUSTE DE ORDEM: Extração do texto de referência baseado no real idx_numero encontrado ---
                 if idx_numero > 0:
                     idx_busca_ref = idx_numero - 1
                     linhas_ref = []
 
-                    if linhas[idx_busca_ref].startswith("(E)"):
-                        texto_referencia_extraido = ""
-                    else:
-                        while idx_busca_ref >= 0:
-                            linha_ref_atual = linhas[idx_busca_ref]
-                            if linha_ref_atual.startswith("(E)"):
-                                break
+                    while idx_busca_ref >= 0:
+                        linha_ref_atual = linhas[idx_busca_ref]
+                        if linha_ref_atual.startswith("(E)"):
+                            break
 
-                            if linha_ref_atual:
-                                linhas_ref.insert(0, linha_ref_atual)                                
+                        if linha_ref_atual:
+                            linhas_ref.insert(0, linha_ref_atual)                                
 
-                            idx_busca_ref -= 1
+                        idx_busca_ref -= 1
 
-                        texto_referencia_extraido = "\n".join(linhas_ref).strip()
+                    texto_referencia_extraido = "\n".join(linhas_ref).strip()
 
                 # --- CONTROLE DE MUDANÇA DE BLOCO E VINCULAÇÃO DO SEU GABARITO ---
                 numero_questao_atual = None
@@ -530,7 +536,6 @@ class ExtracaoService:
                         # 1. Detecta se o número diminuiu (Queda detectada -> Mudança de Bloco de Prova)
                         if numero_questao_anterior != -1 and numero_questao_atual < numero_questao_anterior:
                             indice_gabarito_atual += 1
-                            # Avança para o próximo mapa de gabarito da lista
                             if gabaritos and indice_gabarito_atual < len(gabaritos):
                                 mapeamento_gabarito_vigente = _parse_gabarito_string(gabaritos[indice_gabarito_atual])
                             else:
@@ -543,7 +548,6 @@ class ExtracaoService:
                         if numero_questao_atual in mapeamento_gabarito_vigente:
                             letra_correta = mapeamento_gabarito_vigente[numero_questao_atual]
                             
-                            # Mapeia a letra para o índice correspondente no array do JSON (0 a 4)
                             de_letra_para_indice = {"A": 0, "B": 1, "C": 2, "D": 3, "E": 4}
                             if letra_correta in de_letra_para_indice:
                                 idx_correto = de_letra_para_indice[letra_correta]
@@ -553,24 +557,18 @@ class ExtracaoService:
                 # --- BUSCA PELA TAG DE IMAGEM COM VERIFICAÇÃO DO NÚMERO DA QUESTÃO ---
                 imagem_associada = ""
                 
-                # Função auxiliar para extrair imagem da tag com validação do número
                 def _extrair_imagem_da_tag(texto, numero_questao):
-                    # Padrão para tags com número: [TAG_IMAGEM_QUESTAO:numero:nome_arquivo]
                     match_tag_com_numero = re.search(r"\[TAG_IMAGEM_QUESTAO:(\d+):(.*?)\]", texto)
                     if match_tag_com_numero:
                         numero_da_tag = int(match_tag_com_numero.group(1))
                         nome_arquivo = match_tag_com_numero.group(2)
-                        # Verifica se o número da tag coincide com o número da questão atual
                         if numero_questao is not None and numero_da_tag == numero_questao:
                             return nome_arquivo, re.sub(r"\[TAG_IMAGEM_QUESTAO:\d+:.*?\]", "", texto)
-                        # Se não coincide, mantém a tag para outra questão
                         return None, texto
                     
-                    # Fallback: tag sem número (formato antigo)
                     match_tag_sem_numero = re.search(r"\[TAG_IMAGEM_QUESTAO:(.*?)\]", texto)
                     if match_tag_sem_numero:
                         nome_arquivo = match_tag_sem_numero.group(1)
-                        # Verifica se o nome não contém ":" (para não confundir com o novo formato)
                         if ":" not in nome_arquivo:
                             texto_limpo = re.sub(r"\[TAG_IMAGEM_QUESTAO:.*?\]", "", texto)
                             return nome_arquivo, texto_limpo
@@ -606,6 +604,7 @@ class ExtracaoService:
             i += 1
 
         return dados_questoes    
+
     @staticmethod
     def _obter_gabaritos(lista_arquivos_provas, pasta_localizacao_provas, pasta_localizacao_gabaritos):
         """
