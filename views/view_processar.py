@@ -46,8 +46,9 @@ class ViewProcessar(ctk.CTkFrame):
         self.frame_botoes_acoes = ctk.CTkFrame(self.frame_grid, fg_color="transparent")
         self.frame_botoes_acoes.grid(row=2, column=0, columnspan=3, pady=(10, 15), padx=15, sticky="e")
 
-        self.btn_filtrar = ctk.CTkButton(self.frame_botoes_acoes, text="Separar PDFs por Tipo", fg_color="#2980b9", command=self.separar_pdf_tipo)
-        self.btn_filtrar.pack(side="left", padx=5)
+
+        # self.btn_filtrar = ctk.CTkButton(self.frame_botoes_acoes, text="Separar PDFs por Tipo", fg_color="#2980b9", command=self.separar_pdf_tipo)
+        # self.btn_filtrar.pack(side="left", padx=5)
 
         self.btn_filtrar_materias = ctk.CTkButton(self.frame_botoes_acoes, text="Separar Provas por Matérias", fg_color="#e67e22", command=self.separar_prova_materia)
         self.btn_filtrar_materias.pack(side="left", padx=5)
@@ -64,14 +65,15 @@ class ViewProcessar(ctk.CTkFrame):
             widget.insert(0, pasta)
 
     def bloquear_botoes(self):
-        self.btn_filtrar.configure(state="disabled")
+        # self.btn_filtrar.configure(state="disabled")
         self.btn_filtrar_materias.configure(state="disabled")
         self.txt_log.delete("1.0", tk.END)
 
     def liberar_botoes(self):
-        self.btn_filtrar.configure(state="normal")
+        # self.btn_filtrar.configure(state="normal")
         self.btn_filtrar_materias.configure(state="normal")
 
+    """
     def separar_pdf_tipo(self):
         origem = self.entry_pasta_origem.get().strip()
         destino = self.entry_pasta_destino.get().strip()
@@ -87,7 +89,8 @@ class ViewProcessar(ctk.CTkFrame):
             args=(origem, destino, self.callback_thread), 
             daemon=True
         ).start()        
-
+    """
+    
     def separar_prova_materia(self):
         origem = self.entry_pasta_origem.get().strip()
         destino = self.entry_pasta_destino.get().strip()

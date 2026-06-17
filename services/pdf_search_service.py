@@ -53,12 +53,13 @@ class PdfSearchService:
 
         callback_interface("Processamento Concluído!", 1.0, f"\n=== PROCESSO LOCAL FINALIZADO ===\n{cont_match} arquivos movidos com sucesso para a pasta selecionada.\n")
 
+    """
     @staticmethod
     def separar_por_tipos(pasta_origem: str, pasta_filtrados: str, callback_interface) -> None:
-        """
-        Varre a pasta de origem e copia para a pasta de destino apenas os PDFs que atendem
-        a uma das duas assinaturas de capa padrão da FGV na primeira página.
-        """
+       
+        # Varre a pasta de origem e copia para a pasta de destino apenas os PDFs que atendem
+        # a uma das duas assinaturas de capa padrão da FGV na primeira página.
+       
         # Garante a existência da pasta de destino
         if not os.path.exists(pasta_filtrados):
             os.makedirs(pasta_filtrados, exist_ok=True)
@@ -120,7 +121,8 @@ class PdfSearchService:
             1.0, 
             f"\n=== TRIAGEM LOCAL FINALIZADA ===\n{cont_match} cadernos de prova da FGV identificados e separados.\n"
         )
-
+    """  
+          
     @staticmethod
     def separar_por_materias(pasta_origem: str, pasta_destino: str, callback_interface) -> None:
         """
@@ -143,17 +145,15 @@ class PdfSearchService:
             "Informática": re.compile(r'\bInformática\b'),
             "Analista de Tecnologia": re.compile(r'\bAnalista\s+de\s+Tecnologia\b'),
             "Conhecimentos Específicos": re.compile(r'\bConhecimentos\s+Específicos\b'),
-            "Matemática": re.compile(r'\bMatemática\b'),
-            "Língua Inglesa": re.compile(r'\bLíngua\s+Inglesa\b'),
-            "História": re.compile(r'\bHistória\b'),
-            "Geografia": re.compile(r'\bGeografia\b'),
-            
-            # Casos com variação (Permite: Direito, Direito Administrativo, Direito Constitucional, etc.)
-            "Direito": re.compile(r'\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            
-            # Casos com variação (Permite: Raciocínio Lógico, Raciocínio Lógico-Matemático, etc.)
             "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
-            "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')
+            "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Noções de Informática": re.compile(r'\bNoções de Informática\b')
+
+            #"Matemática": re.compile(r'\bMatemática\b'),
+            #"Língua Inglesa": re.compile(r'\bLíngua\s+Inglesa\b'),
+            #"História": re.compile(r'\bHistória\b'),
+            #"Geografia": re.compile(r'\bGeografia\b'),
+            # "Direito": re.compile(r'\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')
         }
 
         total_copias = 0

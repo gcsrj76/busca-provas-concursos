@@ -97,11 +97,14 @@ class ExtracaoService:
         for idx_lote, lote_atual in enumerate(lotes_de_arquivos):
             numero_bloco_incremental = idx_lote + 1
             progresso_atual = numero_bloco_incremental / total_lotes
+
+            arquivos_formatados = "\n".join(f"  - {arq}" for arq in lote_atual)
             
             callback_interface(
                 f"Processando bloco {numero_bloco_incremental}/{total_lotes}", 
                 progresso_atual, 
-                f"🚀 Iniciando Bloco {numero_bloco_incremental} -> Arquivos: {lote_atual}\n"
+                # f"🚀 Iniciando Bloco {numero_bloco_incremental} -> Arquivos: {lote_atual}\n"
+                f"🚀 Iniciando Bloco {numero_bloco_incremental} -> Arquivos:\n{arquivos_formatados}\n"
             )
 
             # --- PASSO 1: EXTRAÇÃO DO TEXTO LIMPO INTEGRADO (DO LOTE ATUAL) ---
@@ -185,7 +188,8 @@ class ExtracaoService:
             "Geografia": re.compile(r'\bGeografia\b'),
             "Direito": re.compile(r'\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
-            "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')
+            "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Noções de Informática": re.compile(r'\bNoções de Informática\b')
         }
         
         texto_acumulado_lote = ""
@@ -277,9 +281,6 @@ class ExtracaoService:
 
                         if se_inicio_bloco:
 
-                            # --- REMOVIDO: inserção de tag aqui ---
-                            # Agora as tags serão inseridas após a montagem de linhas_corrigidas
-
                             if prefixo_atual or conteudo_acumulado:
                                 texto_completo_bloco = " ".join(conteudo_acumulado)
                                 texto_limpo_bloco = " ".join(texto_completo_bloco.split())
@@ -311,7 +312,9 @@ class ExtracaoService:
                         for num, nome_img in mapeamento_imagens.items():
                             if num is None:
                                 continue  # ignora imagens não associadas
-                            padrao = re.compile(r'^' + str(num) + r'\s+')
+
+                            padrao = re.compile(fr'^{num}\s+')
+
                             # Procurar a primeira ocorrência da linha que começa com o número
                             for i, linha in enumerate(linhas_corrigidas):
                                 if padrao.match(linha):
@@ -337,41 +340,59 @@ class ExtracaoService:
         Utiliza regras rígidas de isolamento (\b) para termos exatos e permite
         variações sequenciais para Direito, Raciocínio Lógico e Legislação.
         """
+
         # Mapeamento idêntico de regras para garantir que os limites de corte (fim) sejam precisos
-        regras_materias = {
-            "Língua Portuguesa": r'\bLíngua\s+Portuguesa\b',
-            "Informática": r'\bInformática\b',
-            "Analista de Tecnologia": r'\bAnalista\s+de\s+Tecnologia\b',
-            "Conhecimentos Específicos": r'\bConhecimentos\s+Específicos\b',
-            "Matemática": r'\bMatemática\b',
-            "Língua Inglesa": r'\bLíngua\s+Inglesa\b',
-            "História": r'\bHistória\b',
-            "Geografia": r'\bGeografia\b',
-            "Direito": r'\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*',
-            "Raciocínio Lógico": r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*',
-            "Legislação": r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'
+        regras_materias_inicio = {
+            "Língua Portuguesa": re.compile(r'\bLíngua\s+Portuguesa\b'),
+            "Informática": re.compile(r'\bInformática\b'),
+            "Analista de Tecnologia": re.compile(r'\bAnalista\s+de\s+Tecnologia\b'),
+            "Conhecimentos Específicos": re.compile(r'\bConhecimentos\s+Específicos\b'),
+            "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
+            "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')
+        }
+
+        # Mapeamento idêntico de regras para garantir que os limites de corte (fim) sejam precisos
+        regras_materias_corte = {
+            "Língua Portuguesa": re.compile(r'\bLíngua\s+Portuguesa\b'),
+            "Informática": re.compile(r'\bInformática\b'),
+            "Analista de Tecnologia": re.compile(r'\bAnalista\s+de\s+Tecnologia\b'),
+            "Conhecimentos Específicos": re.compile(r'\bConhecimentos\s+Específicos\b'),
+            "Matemática": re.compile(r'\bMatemática\b'),
+            "Língua Inglesa": re.compile(r'\bLíngua\s+Inglesa\b'),
+            "História": re.compile(r'\bHistória\b'),
+            "Geografia": re.compile(r'\bGeografia\b'),
+            "Direito": re.compile(r'\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
+            "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Noções de Informática": re.compile(r'\bNoções de Informática\b')
         }
 
         # 1. Determina a Regex de INÍCIO para a matéria selecionada
-        if materia_inicial in regras_materias:
+        if materia_inicial in regras_materias_inicio:
             # Força que a linha contenha apenas o padrão da matéria (com suas tolerâncias se for o caso)
-            padrao_inicio = fr"^\s*{regras_materias[materia_inicial]}\s*$"
+            padrao_inicio = fr"^\s*{regras_materias_inicio[materia_inicial].pattern}\s*$"
         else:
-            padrao_inicio = fr"^\s*\b{reft(re.escape(materia_inicial))}\b\s*$"
+            padrao_inicio = fr"^\s*\b{re.escape(materia_inicial)}\b\s*$"
 
-        matches_inicio = list(re.finditer(padrao_inicio, texto_completo, re.MULTILINE | re.IGNORECASE))
+        regex_inicio_final = re.compile(padrao_inicio, re.MULTILINE)
+        matches_inicio = list(regex_inicio_final.finditer(texto_completo))
         
         if not matches_inicio:
             return ""
 
         # 2. Determina as Regex de FIM (todas as OUTRAS matérias que servem como ponto de corte)
         materias_corte_padroes = [
-            padrao for nome, padrao in regras_materias.items() 
-            if nome.lower() != materia_inicial.lower()
-        ]
-        
-        # Junta todas as outras matérias em um "OR" comercial (ex: (?:^Informática$|^Direito.*$))
-        padrao_fim = r"^\s*(?:" + "|".join(materias_corte_padroes) + r")\s*$"
+            padrao for nome, padrao in regras_materias_corte.items() 
+            if nome != materia_inicial
+        ]        
+
+        # Necessário por conta do uso o 're.compile'
+        strings_puras = [m.pattern if isinstance(m, re.Pattern) else m for m in materias_corte_padroes]        
+
+        # Junta todas as outras matérias em um "OR" comercial (ex: (?:^Informática$|^Direito.*$))        
+        padrao_fim = r"^\s*(?:" + "|".join(strings_puras) + r")\s*$"
+
+        regex_corte_final = re.compile(padrao_fim, re.MULTILINE)
 
         texto_acumulado_materia = ""
         total_blocos = len(matches_inicio)
@@ -386,7 +407,7 @@ class ExtracaoService:
                 sub_texto_busca = texto_completo[ponto_inicio_conteudo:]
 
             # Procura se alguma outra matéria surgiu no meio do caminho para cortar o bloco
-            fim_match = re.search(padrao_fim, sub_texto_busca, re.MULTILINE | re.IGNORECASE)
+            fim_match = regex_corte_final.search(sub_texto_busca)
             
             if fim_match:
                 bloco_isolado = sub_texto_busca[:fim_match.start()]
