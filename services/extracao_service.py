@@ -55,6 +55,7 @@ class ExtracaoService:
         3. Para cada bloco, executa a extração limpa e gera o log de depuração txt.
         4. Filtra a matéria selecionada do conteúdo concatenado do bloco.
         5. Estrutura os dados encontrados no formato padrão JSON.
+        6. [NOVO] Remove imagens órfãs/não utilizadas extraídas no lote.
         """
 
         nome_subpasta_materia = materia.replace(' ', '_').lower()
@@ -103,38 +104,44 @@ class ExtracaoService:
             callback_interface(
                 f"Processando bloco {numero_bloco_incremental}/{total_lotes}", 
                 progresso_atual, 
-                # f"🚀 Iniciando Bloco {numero_bloco_incremental} -> Arquivos: {lote_atual}\n"
                 f"🚀 Iniciando Bloco {numero_bloco_incremental} -> Arquivos:\n{arquivos_formatados}\n"
             )
+
+            # --- [NOVO] Guardamos o estado da pasta de imagens ANTES da extração ---
+            imagens_antes = set(os.listdir(pasta_imagens))
 
             # --- PASSO 1: EXTRAÇÃO DO TEXTO LIMPO INTEGRADO (DO LOTE ATUAL) ---
             texto_limpo_lote = ExtracaoService._executar_texto_limpo_lote(pasta_provas, pasta_imagens, lote_atual, callback_interface)
 
-            # Gravação do arquivo de depuração do Bloco de Texto Limpo (Controle/Depuração requisitado)
+            # --- [NOVO] Identificamos quais novas imagens surgiram nesta iteração ---
+            imagens_depois = set(os.listdir(pasta_imagens))
+            imagens_criadas_no_lote = imagens_depois - imagens_antes
+
+            # Gravação do arquivo de depuração do Bloco de Texto Limpo
             nome_arq_depuracao_txt = f"depuracao_bloco_{numero_bloco_incremental:04d}.txt"
             caminho_depuracao_txt = os.path.join(diretorio_saida_final, nome_arq_depuracao_txt)
             
             with open(caminho_depuracao_txt, "w", encoding="utf-8") as f_depura:
-                # 1. Cabeçalho inicial
                 f_depura.write("=== ARQUIVOS TRATADOS NESTE INTERVALO ===\n")
-                
-                # 2. Varre o lote atual e escreve cada nome de arquivo em uma linha própria
                 for nome_arquivo in lote_atual:
                     f_depura.write(f"- {nome_arquivo}\n")
-                
-                # 3. Linha divisória para separar o cabeçalho do conteúdo útil
                 f_depura.write("=========================================\n\n")
-                
-                # 4. Escreve o texto limpo acumulado
                 f_depura.write(texto_limpo_lote.strip())
 
             # --- PASSO 2: FILTRAGEM DA MATÉRIA DO LOTE ---
             texto_filtrado_materia = ExtracaoService._executar_filtragem_materia(texto_limpo_lote, materia, callback_interface)
 
             if not texto_filtrado_materia.strip():
+                # [NOVO] Se o lote não tem a matéria, todas as imagens geradas nele são inúteis
+                for img_inutil in imagens_criadas_no_lote:
+                    try:
+                        os.remove(os.path.join(pasta_imagens, img_inutil))
+                    except Exception:
+                        pass
+                
                 callback_interface(
                     None, progresso_atual, 
-                    f"⚠️ Bloco {numero_bloco_incremental:04d}: Nenhum conteúdo de '{materia}' encontrado neste lote.\n"
+                    f"⚠️ Bloco {numero_bloco_incremental:04d}: Nenhum conteúdo de '{materia}' encontrado neste lote. Imagens temporárias limpas.\n"
                 )
                 continue
 
@@ -143,6 +150,24 @@ class ExtracaoService:
 
             # --- PASSO 4: ESTRUTURAÇÃO DO TEXTO DA MATÉRIA PARA JSON ---
             dados_questoes_estruturadas = ExtracaoService._converter_texto_para_estrutura_dados(texto_filtrado_materia, gabaritos)
+
+            # --- [NOVO] PROCESSO DE LIMPEZA DE IMAGENS NÃO UTILIZADAS ---
+            # Descobrimos quais imagens foram de fato mapeadas para a estrutura final
+            imagens_utilizadas = {
+                q["imagem"] for q in dados_questoes_estruturadas 
+                if q.get("imagem")
+            }
+
+            # A diferença entre o que foi criado e o que foi usado é o nosso lixo
+            imagens_para_remover = imagens_criadas_no_lote - imagens_utilizadas
+            
+            qtd_removida = 0
+            for img_antiga in imagens_para_remover:
+                try:
+                    os.remove(os.path.join(pasta_imagens, img_antiga))
+                    qtd_removida += 1
+                except Exception as e:
+                    print(f"Erro ao remover imagem órfã {img_antiga}: {e}")
 
             # Formatação do nome de saída exigido: <Matéria><Número incremental com 4 dígitos>.json
             nome_arquivo_json_final = f"{nome_subpasta_materia}_{numero_bloco_incremental:04d}.json"
@@ -158,9 +183,10 @@ class ExtracaoService:
             with open(caminho_salvamento_json, "w", encoding="utf-8") as f_out:
                 json.dump(layout_final, f_out, ensure_ascii=False, indent=2)
 
+            msg_limpeza = f" (Lixo limpo: {qtd_removida} imagens removidas)" if qtd_removida > 0 else ""
             callback_interface(
                 None, progresso_atual, 
-                f"✅ Bloco {numero_bloco_incremental:04d} salvo com sucesso em:\n➡️ {caminho_salvamento_json}\n\n"
+                f"✅ Bloco {numero_bloco_incremental:04d} salvo com sucesso em:\n➡️ {caminho_salvamento_json}{msg_limpeza}\n\n"
             )
 
         callback_interface("Processamento Concluído com Sucesso!", 1.0, "=== PIPELINE DE SUCESSO ABSOLUTO FINALIZADO ===\n")
