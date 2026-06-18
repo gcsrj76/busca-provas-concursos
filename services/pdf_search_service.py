@@ -145,7 +145,8 @@ class PdfSearchService:
             "Informática": re.compile(r'\bInformática\b'),
             "Analista de Tecnologia": re.compile(r'\bAnalista\s+de\s+Tecnologia\b'),
             "Conhecimentos Específicos": re.compile(r'\bConhecimentos\s+Específicos\b'),
-            "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
+            "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico(?:\s*-\s*[A-ZÀ-Úa-zà-ú]+)?\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),            
+            #"Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
             "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Noções de Informática": re.compile(r'\bNoções de Informática\b')
 
