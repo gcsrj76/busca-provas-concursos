@@ -489,15 +489,14 @@ class ExtracaoService:
 
                     if match_linha_iniciada_por_num:
                         # Sempre que achamos um número, atualizamos como o candidato a ser o início da questão.
-                        # Ao fazer isso, se houver linhas acumuladas abaixo dele que pertenciam a um número falso (como itens I, II),
-                        # reinserimos o texto restante tratado anteriormente no acumulador de linhas.
                         if idx_numero != -1 and texto_restante_da_linha_do_numero:
                             linhas_enunciado.insert(0, texto_restante_da_linha_do_numero)
 
                         idx_numero = idx_busca_enunciado
                         texto_restante_da_linha_do_numero = match_linha_iniciada_por_num.group(2).strip()
                     else:
-                        if linha_atual:
+                        # Melhores práticas: Ignora linhas de TAG de imagem para não poluir o enunciado/referência
+                        if linha_atual and not linha_atual.startswith("[TAG_IMAGEM_QUESTAO:"):
                             linhas_enunciado.insert(0, linha_atual)
 
                     idx_busca_enunciado -= 1
@@ -518,7 +517,8 @@ class ExtracaoService:
                         if linha_ref_atual.startswith("(E)"):
                             break
 
-                        if linha_ref_atual:
+                        # Melhores práticas: Ignora a tag de imagem para que ela não seja computada como texto de referência
+                        if linha_ref_atual and not linha_ref_atual.startswith("[TAG_IMAGEM_QUESTAO:"):
                             linhas_ref.insert(0, linha_ref_atual)                                
 
                         idx_busca_ref -= 1
@@ -554,43 +554,23 @@ class ExtracaoService:
                                 if idx_correto < len(respostas_temporarias):
                                     respostas_temporarias[idx_correto]["eh_correta"] = 1
 
-                # --- BUSCA PELA TAG DE IMAGEM COM VERIFICAÇÃO DO NÚMERO DA QUESTÃO ---
+                # --- BUSCA DIRETA PELA TAG DE IMAGEM NO HISTÓRICO DE LINHAS DA QUESTÃO ---
                 imagem_associada = ""
                 
-                def _extrair_imagem_da_tag(texto, numero_questao):
-                    match_tag_com_numero = re.search(r"\[TAG_IMAGEM_QUESTAO:(\d+):(.*?)\]", texto)
-                    if match_tag_com_numero:
-                        numero_da_tag = int(match_tag_com_numero.group(1))
-                        nome_arquivo = match_tag_com_numero.group(2)
-                        if numero_questao is not None and numero_da_tag == numero_questao:
-                            return nome_arquivo, re.sub(r"\[TAG_IMAGEM_QUESTAO:\d+:.*?\]", "", texto)
-                        return None, texto
-                    
-                    match_tag_sem_numero = re.search(r"\[TAG_IMAGEM_QUESTAO:(.*?)\]", texto)
-                    if match_tag_sem_numero:
-                        nome_arquivo = match_tag_sem_numero.group(1)
-                        if ":" not in nome_arquivo:
-                            texto_limpo = re.sub(r"\[TAG_IMAGEM_QUESTAO:.*?\]", "", texto)
-                            return nome_arquivo, texto_limpo
-                    
-                    return None, texto
-                
-                # Procura no enunciado
-                imagem_extraida, enunciado_extraido = _extrair_imagem_da_tag(
-                    enunciado_extraido, numero_questao_atual
-                )
-                if imagem_extraida:
-                    imagem_associada = imagem_extraida
-                
-                # Se não achou no enunciado, verifica no texto de referência
-                if not imagem_associada and texto_referencia_extraido:
-                    imagem_extraida, texto_referencia_extraido = _extrair_imagem_da_tag(
-                        texto_referencia_extraido, numero_questao_atual
-                    )
-                    if imagem_extraida:
-                        imagem_associada = imagem_extraida
+                # Modificação principal: Varremos as linhas que compõem o escopo desta questão para achar a tag original intacta
+                if numero_questao_atual is not None:
+                    # Buscamos a tag desde o início do enunciado até o limite superior da questão anterior (alternativa E)
+                    limite_superior = idx_busca_enunciado if idx_busca_enunciado >= 0 else 0
+                    for idx_varredura in range(limite_superior, idx_A):
+                        linha_analise = linhas[idx_varredura]
+                        match_tag = re.search(r"\[TAG_IMAGEM_QUESTAO:(\d+):(.*?)\]", linha_analise)
+                        if match_tag:
+                            num_tag = int(match_tag.group(1))
+                            if num_tag == numero_questao_atual:
+                                imagem_associada = match_tag.group(2).strip()
+                                break
 
-                # Adiciona a estrutura finalizada incluindo o campo 'imagem'
+                # Adiciona a estrutura finalizada incluindo o campo 'imagem' limpo e isolado
                 dados_questoes.append({
                     "enunciado": enunciado_extraido,
                     "texto_referencia": texto_referencia_extraido,
@@ -603,7 +583,7 @@ class ExtracaoService:
 
             i += 1
 
-        return dados_questoes    
+        return dados_questoes
 
     @staticmethod
     def _obter_gabaritos(lista_arquivos_provas, pasta_localizacao_provas, pasta_localizacao_gabaritos):
