@@ -4,8 +4,8 @@ import unicodedata
 from pathlib import Path
 
 
-PASTA_ORIGEM = r"/home/palinux/Área de trabalho/Concursos/PDFs FGV - Páginas 1 a 5/Provas por Matérias/JSONs/_língua_portuguesa"
-PASTA_DESTINO = r"/home/palinux/Área de trabalho/Concursos/PDFs FGV - Páginas 1 a 5/Provas por Matérias/JSONs/_língua_portuguesa_sem_duplicata"
+PASTA_ORIGEM = r"/home/palinux/Área de trabalho/Concursos/PDFs FGV - Páginas 1 a 5/Provas por Matérias/JSONs/raciocínio_lógico"
+PASTA_DESTINO = r"/home/palinux/Área de trabalho/Concursos/PDFs FGV - Páginas 1 a 5/Prontos para Importação/Raciocínio Lógico/Json"
 
 
 def normalizar_texto(texto):
@@ -60,6 +60,22 @@ def gerar_chave_questao(questao):
     )
 
 
+def possui_imagem(questao):
+    """
+    Retorna True se o campo imagem estiver preenchido.
+    """
+
+    imagem = questao.get("imagem")
+
+    if imagem is None:
+        return False
+
+    if str(imagem).strip() == "":
+        return False
+
+    return True
+
+
 def remover_duplicadas_json(
     arquivo_entrada,
     arquivo_saida
@@ -75,8 +91,7 @@ def remover_duplicadas_json(
 
     questoes = dados.get("dados", [])
 
-    chaves_encontradas = set()
-    questoes_unicas = []
+    questoes_por_chave = {}
 
     removidas = 0
 
@@ -86,15 +101,36 @@ def remover_duplicadas_json(
             questao
         )
 
-        if chave in chaves_encontradas:
-            removidas += 1
+        if chave not in questoes_por_chave:
+
+            questoes_por_chave[chave] = questao
             continue
 
-        chaves_encontradas.add(chave)
+        questao_existente = questoes_por_chave[chave]
 
-        questoes_unicas.append(
+        existente_tem_imagem = possui_imagem(
+            questao_existente
+        )
+
+        nova_tem_imagem = possui_imagem(
             questao
         )
+
+        # Regra:
+        # prevalece a que possui imagem
+
+        if (
+            not existente_tem_imagem
+            and nova_tem_imagem
+        ):
+
+            questoes_por_chave[chave] = questao
+
+        removidas += 1
+
+    questoes_unicas = list(
+        questoes_por_chave.values()
+    )
 
     dados["dados"] = questoes_unicas
 
@@ -121,6 +157,7 @@ def remover_duplicadas_json(
         removidas,
         len(questoes_unicas)
     )
+
 
 
 def processar_pasta():
