@@ -207,17 +207,25 @@ class ExtracaoService:
             "Língua Portuguesa": re.compile(r'\bLíngua\s+Portuguesa\b'),
             "Informática": re.compile(r'\bInformática\b'),
             "Analista de Tecnologia": re.compile(r'\bAnalista\s+de\s+Tecnologia\b'),
-            "Conhecimentos Específicos": re.compile(r'\bConhecimentos\s+Específicos\b'),
+            "Conhecimentos": re.compile(r'\bConhecimentos\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),            
+            "CONHECIMENTOS ESPECÍFICOS": re.compile(r'\bCONHECIMENTOS\s+ESPECÍFICOS\b'),            
             "Matemática": re.compile(r'\bMatemática\b'),
             "Língua Inglesa": re.compile(r'\bLíngua\s+Inglesa\b'),
-            "História": re.compile(r'\bHistória\b'),
-            "Geografia": re.compile(r'\bGeografia\b'),
+            "História": re.compile(r'\bHistória\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Geografia": re.compile(r'\bGeografia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Direito": re.compile(r'\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico(?:\s*-\s*[A-ZÀ-Úa-zà-ú]+)?\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
-            #"Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),            
             "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Noções de Informática": re.compile(r'\bNoções de Informática\b')
-        }
+            "Noções": re.compile(r'\bNoções\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Contabilidade": re.compile(r'\bContabilidade\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Administração": re.compile(r'\bAdministração\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Auditoria": re.compile(r'\bAuditoria\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Economia": re.compile(r'\bEconomia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Tecnologia": re.compile(r'\bTecnologia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Organização": re.compile(r'\bOrganização\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Atualidades": re.compile(r'\bAtualidades\b(?:\s*(?:-|–)?\s*[A-ZÀ-Úa-zà-ú]+)*'),
+            "Tutela": re.compile(r'\bTutela\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')                        
+        }        
         
         texto_acumulado_lote = ""
 
@@ -375,8 +383,8 @@ class ExtracaoService:
             "Analista de Tecnologia": re.compile(r'\bAnalista\s+de\s+Tecnologia\b'),
             "Conhecimentos Específicos": re.compile(r'\bConhecimentos\s+Específicos\b'),
             "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico(?:\s*-\s*[A-ZÀ-Úa-zà-ú]+)?\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
-            #"Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
-            "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')
+            "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Tecnologia Informação": re.compile(r'\bTecnologia(?:\s+(?:da|de|em))?\s+Informação\b')
         }
 
         # Mapeamento idêntico de regras para garantir que os limites de corte (fim) sejam precisos
@@ -384,18 +392,25 @@ class ExtracaoService:
             "Língua Portuguesa": re.compile(r'\bLíngua\s+Portuguesa\b'),
             "Informática": re.compile(r'\bInformática\b'),
             "Analista de Tecnologia": re.compile(r'\bAnalista\s+de\s+Tecnologia\b'),
-            "Conhecimentos Específicos": re.compile(r'\bConhecimentos\s+Específicos\b'),
+            "Conhecimentos": re.compile(r'\bConhecimentos\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),            
             "CONHECIMENTOS ESPECÍFICOS": re.compile(r'\bCONHECIMENTOS\s+ESPECÍFICOS\b'),            
             "Matemática": re.compile(r'\bMatemática\b'),
             "Língua Inglesa": re.compile(r'\bLíngua\s+Inglesa\b'),
-            "História": re.compile(r'\bHistória\b'),
-            "Geografia": re.compile(r'\bGeografia\b'),
+            "História": re.compile(r'\bHistória\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Geografia": re.compile(r'\bGeografia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Direito": re.compile(r'\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico(?:\s*-\s*[A-ZÀ-Úa-zà-ú]+)?\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
             #"Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),            
             "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Noções": re.compile(r'\bNoções\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Contabilidade": re.compile(r'\bContabilidade\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')            
+            "Contabilidade": re.compile(r'\bContabilidade\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Administração": re.compile(r'\bAdministração\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Auditoria": re.compile(r'\bAuditoria\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Economia": re.compile(r'\bEconomia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Tecnologia": re.compile(r'\bTecnologia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Organização": re.compile(r'\bOrganização\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),            
+            "Atualidades": re.compile(r'\bAtualidades\b(?:\s*(?:-|–)?\s*[A-ZÀ-Úa-zà-ú]+)*'),
+            "Tutela": re.compile(r'\bTutela\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')
         }
 
         # 1. Determina a Regex de INÍCIO para a matéria selecionada

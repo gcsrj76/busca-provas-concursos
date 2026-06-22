@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 
 
-PASTA_JSONS = r"/home/palinux/Área de trabalho/Concursos/PDFs FGV - Páginas 1 a 5/Prontos para Importação/Raciocínio Lógico/Json"
-PASTA_IMAGENS = r"/home/palinux/Área de trabalho/Concursos/PDFs FGV - Páginas 1 a 5/Prontos para Importação/Raciocínio Lógico/Imagens"
+PASTA_JSONS = r"/home/palinux/Downloads/Exportação APP"
+PASTA_IMAGENS = r"/home/palinux/Downloads/Exportação APP"
 
 
 def obter_imagens_referenciadas():

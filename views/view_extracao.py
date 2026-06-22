@@ -68,7 +68,8 @@ class ViewExtracao(ctk.CTkFrame):
             "Informática", 
             "Analista de Tecnologia", 
             "Conhecimentos Específicos",
-            "Noções de Informática" 
+            "Noções de Informática",
+            "Tecnologia Informação" 
         ]
         
         self.entry_restricao = ctk.CTkComboBox(self.sub_frame_materia, values=opcoes_materias)

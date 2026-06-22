@@ -4,8 +4,8 @@ import unicodedata
 from pathlib import Path
 
 
-PASTA_ORIGEM = r"/home/palinux/Área de trabalho/Concursos/PDFs FGV - Páginas 1 a 5/Provas por Matérias/JSONs/raciocínio_lógico"
-PASTA_DESTINO = r"/home/palinux/Área de trabalho/Concursos/PDFs FGV - Páginas 1 a 5/Prontos para Importação/Raciocínio Lógico/Json"
+PASTA_ORIGEM = r"/home/palinux/Área de trabalho/Concursos/PDFs FGV - Páginas 1 a 5/Provas por Matérias/JSONs/legislação"
+PASTA_DESTINO = r"/home/palinux/Área de trabalho/Concursos/PDFs FGV - Páginas 1 a 5/Prontos para Importação/Legislação/Json"
 
 
 def normalizar_texto(texto):
