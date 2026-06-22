@@ -224,7 +224,9 @@ class ExtracaoService:
             "Tecnologia": re.compile(r'\bTecnologia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Organização": re.compile(r'\bOrganização\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Atualidades": re.compile(r'\bAtualidades\b(?:\s*(?:-|–)?\s*[A-ZÀ-Úa-zà-ú]+)*'),
-            "Tutela": re.compile(r'\bTutela\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')                        
+            "Tutela": re.compile(r'\bTutela\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Fundamentos": re.compile(r'\bFundamentos\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Controle": re.compile(r'\bControle\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')                                    
         }        
         
         texto_acumulado_lote = ""
@@ -238,7 +240,7 @@ class ExtracaoService:
                 
                 # Primeira passada rápida no PDF para mapear o que se repete entre as páginas
                 for num_pag in range(len(leitor.pages)):
-                    if num_pag < 2:
+                    if num_pag < 1:
                         continue
 
                     texto_pag = leitor.pages[num_pag].extract_text(extraction_mode="plain")
@@ -254,7 +256,7 @@ class ExtracaoService:
                 
                 # Segunda passada para o processamento e extração filtrada
                 for num_pag in range(len(leitor.pages)):
-                    if num_pag < 2:
+                    if num_pag < 1:
                         continue
 
                     pagina_objeto = leitor.pages[num_pag]
@@ -410,7 +412,9 @@ class ExtracaoService:
             "Tecnologia": re.compile(r'\bTecnologia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Organização": re.compile(r'\bOrganização\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),            
             "Atualidades": re.compile(r'\bAtualidades\b(?:\s*(?:-|–)?\s*[A-ZÀ-Úa-zà-ú]+)*'),
-            "Tutela": re.compile(r'\bTutela\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')
+            "Tutela": re.compile(r'\bTutela\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Fundamentos": re.compile(r'\bFundamentos\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Controle": re.compile(r'\bControle\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')
         }
 
         # 1. Determina a Regex de INÍCIO para a matéria selecionada
