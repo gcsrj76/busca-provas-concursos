@@ -17,7 +17,7 @@ class ViewDownload(ctk.CTkFrame):
 
         # Título da Tela
         self.lbl_titulo = ctk.CTkLabel(
-            self, text="📥 Baixar Provas / PDFs da Web", 
+            self, text="📥 Baixar PDFs (Provas, Editais e Gabaritos) da FGV", 
             font=ctk.CTkFont(size=20, weight="bold")
         )
         self.lbl_titulo.pack(pady=(20, 10), padx=20, anchor="w")

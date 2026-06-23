@@ -203,32 +203,37 @@ class ExtracaoService:
             os.makedirs(pasta_imagens, exist_ok=True)
 
         # Usamos os mesmos padrões da filtragem para detecção de quebra de escopo
+        # Adicionado ^ no início e a flag re.IGNORECASE (re.I) em todas as compilações
         regras_materias = {
-            "Língua Portuguesa": re.compile(r'\bLíngua\s+Portuguesa\b'),
-            "Informática": re.compile(r'\bInformática\b'),
-            "Analista de Tecnologia": re.compile(r'\bAnalista\s+de\s+Tecnologia\b'),
-            "Conhecimentos": re.compile(r'\bConhecimentos\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),            
-            "CONHECIMENTOS ESPECÍFICOS": re.compile(r'\bCONHECIMENTOS\s+ESPECÍFICOS\b'),            
-            "Matemática": re.compile(r'\bMatemática\b'),
-            "Língua Inglesa": re.compile(r'\bLíngua\s+Inglesa\b'),
-            "História": re.compile(r'\bHistória\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Geografia": re.compile(r'\bGeografia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Direito": re.compile(r'\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico(?:\s*-\s*[A-ZÀ-Úa-zà-ú]+)?\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
-            "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Noções": re.compile(r'\bNoções\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Contabilidade": re.compile(r'\bContabilidade\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Administração": re.compile(r'\bAdministração\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Auditoria": re.compile(r'\bAuditoria\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Economia": re.compile(r'\bEconomia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Tecnologia": re.compile(r'\bTecnologia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Organização": re.compile(r'\bOrganização\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Atualidades": re.compile(r'\bAtualidades\b(?:\s*(?:-|–)?\s*[A-ZÀ-Úa-zà-ú]+)*'),
-            "Tutela": re.compile(r'\bTutela\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Fundamentos": re.compile(r'\bFundamentos\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Controle": re.compile(r'\bControle\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')                                    
-        }        
-        
+            "Língua Portuguesa": re.compile(r'^\s*\bLíngua\s+Portuguesa\b', re.I),
+            "Informática": re.compile(r'^\s*\b(?:Noções\s+de\s+)?Informática\b', re.I),
+            "Conhecimentos": re.compile(r'^\s*\bConhecimentos\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),            
+            "Conhecimentos Específicos": re.compile(r'^\s*\bConhecimentos\s+Específicos\b', re.I),            
+            "Matemática": re.compile(r'^\s*\bMatemática\b', re.I),
+            "Língua Inglesa": re.compile(r'^\s*\bLíngua\s+Inglesa\b', re.I),
+            "História": re.compile(r'^\s*\bHistória\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Geografia": re.compile(r'^\s*\bGeografia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Direito": re.compile(r'^\s*\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Raciocínio Lógico": re.compile(r'^\s*\bRaciocínio\s+Lógico(?:\s*-\s*[A-ZÀ-Úa-zà-ú]+)?\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Legislação": re.compile(r'^\s*\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Noções": re.compile(r'^\s*\bNoções\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Contabilidade": re.compile(r'^\s*\bContabilidade\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Administração": re.compile(r'^\s*\bAdministração\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Auditoria": re.compile(r'^\s*\bAuditoria\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Economia": re.compile(r'^\s*\bEconomia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Tecnologia": re.compile(r'^\s*\bTecnologia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Tecnologia da Informação": re.compile(r'^\s*\bTecnologia(?:\s+(?:da|de|em))?\s+Informação\b', re.I),
+            "Analista de Tecnologia": re.compile(r'^\s*\bAnalista(?:\s+(?:da|de|em))?\s+Tecnologia\b', re.I),
+            "Analista de Sistema": re.compile(r'^\s*\bAnalista(?:\s+(?:da|de|em))?\s+Sistemas?\b', re.I),
+            "Ciência de Dados": re.compile(r'^\s*\bCiência\s+de\s+Dados\b', re.I),
+            "Banco de Dados": re.compile(r'^\s*\bBanco\s+de\s+Dados\b', re.I),
+            "Organização": re.compile(r'^\s*\bOrganização\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Atualidades": re.compile(r'^\s*\bAtualidades\b(?:\s*(?:-|–)?\s*[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Tutela": re.compile(r'^\s*\bTutela\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Fundamentos": re.compile(r'^\s*\bFundamentos\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I),
+            "Controle": re.compile(r'^\s*\bControle\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*', re.I)                                    
+        }
+
         texto_acumulado_lote = ""
 
         for nome_arq in lote_arquivos:
@@ -378,38 +383,45 @@ class ExtracaoService:
         variações sequenciais para Direito, Raciocínio Lógico e Legislação.
         """
 
-        # Mapeamento idêntico de regras para garantir que os limites de corte (fim) sejam precisos
+        # Mapeamento com delimitadores limpos, pois o '^' e o 're.I' serão injetados dinamicamente
         regras_materias_inicio = {
             "Língua Portuguesa": re.compile(r'\bLíngua\s+Portuguesa\b'),
-            "Informática": re.compile(r'\bInformática\b'),
-            "Analista de Tecnologia": re.compile(r'\bAnalista\s+de\s+Tecnologia\b'),
+            "Informática": re.compile(r'\b(?:Noções\s+de\s+)?Informática\b'),
             "Conhecimentos Específicos": re.compile(r'\bConhecimentos\s+Específicos\b'),
             "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico(?:\s*-\s*[A-ZÀ-Úa-zà-ú]+)?\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
             "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Tecnologia Informação": re.compile(r'\bTecnologia(?:\s+(?:da|de|em))?\s+Informação\b')
+            "Tecnologia da Informação": re.compile(
+                r'\bTecnologia(?:\s+(?:da|de|em))?\s+Informação\b|'
+                r'\bAnalista(?:\s+(?:da|de|em))?\s+Tecnologia\b|'
+                r'\bAnalista(?:\s+(?:da|de|em))?\s+Sistemas?\b|'
+                r'\bCiência\s+de\s+Dados\b|'
+                r'\bBanco\s+de\s+Dados\b'
+            )
         }
 
-        # Mapeamento idêntico de regras para garantir que os limites de corte (fim) sejam precisos
         regras_materias_corte = {
             "Língua Portuguesa": re.compile(r'\bLíngua\s+Portuguesa\b'),
-            "Informática": re.compile(r'\bInformática\b'),
-            "Analista de Tecnologia": re.compile(r'\bAnalista\s+de\s+Tecnologia\b'),
+            "Informática": re.compile(r'\b(?:Noções\s+de\s+)?Informática\b'),
             "Conhecimentos": re.compile(r'\bConhecimentos\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),            
-            "CONHECIMENTOS ESPECÍFICOS": re.compile(r'\bCONHECIMENTOS\s+ESPECÍFICOS\b'),            
+            "Conhecimentos Específicos": re.compile(r'\bConhecimentos\s+Específicos\b'),
             "Matemática": re.compile(r'\bMatemática\b'),
             "Língua Inglesa": re.compile(r'\bLíngua\s+Inglesa\b'),
             "História": re.compile(r'\bHistória\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Geografia": re.compile(r'\bGeografia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Direito": re.compile(r'\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico(?:\s*-\s*[A-ZÀ-Úa-zà-ú]+)?\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
-            #"Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),            
             "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Noções": re.compile(r'\bNoções\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Contabilidade": re.compile(r'\bContabilidade\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Administração": re.compile(r'\bAdministração\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Auditoria": re.compile(r'\bAuditoria\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
             "Economia": re.compile(r'\bEconomia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Tecnologia": re.compile(r'\bTecnologia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
+            "Tecnologia": re.compile(r'\bTecnologia\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),                            
+            "Tecnologia da Informação": re.compile(r'\bTecnologia(?:\s+(?:da|de|em))?\s+Informação\b'),
+            "Analista de Tecnologia": re.compile(r'\bAnalista(?:\s+(?:da|de|em))?\s+Tecnologia\b'),
+            "Analista de Sistema": re.compile(r'\bAnalista(?:\s+(?:da|de|em))?\s+Sistemas?\b'),
+            "Ciência de Dados": re.compile(r'\bCiência\s+de\s+Dados\b'),
+            "Banco de Dados": re.compile(r'\bBanco\s+de\s+Dados\b'),
             "Organização": re.compile(r'\bOrganização\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),            
             "Atualidades": re.compile(r'\bAtualidades\b(?:\s*(?:-|–)?\s*[A-ZÀ-Úa-zà-ú]+)*'),
             "Tutela": re.compile(r'\bTutela\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
@@ -419,12 +431,12 @@ class ExtracaoService:
 
         # 1. Determina a Regex de INÍCIO para a matéria selecionada
         if materia_inicial in regras_materias_inicio:
-            # Força que a linha contenha apenas o padrão da matéria (com suas tolerâncias se for o caso)
-            padrao_inicio = fr"^\s*{regras_materias_inicio[materia_inicial].pattern}\s*$"
+            padrao_inicio = fr"^\s*(?:{regras_materias_inicio[materia_inicial].pattern})\s*$"
         else:
             padrao_inicio = fr"^\s*\b{re.escape(materia_inicial)}\b\s*$"
 
-        regex_inicio_final = re.compile(padrao_inicio, re.MULTILINE)
+        # CORREÇÃO: Adicionado re.IGNORECASE (re.I) para a captura inicial ser case-insensitive
+        regex_inicio_final = re.compile(padrao_inicio, re.MULTILINE | re.IGNORECASE)
         matches_inicio = list(regex_inicio_final.finditer(texto_completo))
         
         if not matches_inicio:
@@ -436,13 +448,15 @@ class ExtracaoService:
             if nome != materia_inicial
         ]        
 
-        # Necessário por conta do uso o 're.compile'
         strings_puras = [m.pattern if isinstance(m, re.Pattern) else m for m in materias_corte_padroes]        
 
-        # Junta todas as outras matérias em um "OR" comercial (ex: (?:^Informática$|^Direito.*$))        
-        padrao_fim = r"^\s*(?:" + "|".join(strings_puras) + r")\s*$"
+        # CORREÇÃO: Cada item mapeado da lista agora é individualmente envelopado em um grupo (?: ... )
+        # Isso impede que o operador OR | quebre a precedência do início de linha ^\s*
+        strings_protegidas = [fr"(?:{p})" for p in strings_puras]
+        padrao_fim = r"^\s*(?:" + "|".join(strings_protegidas) + r")\s*$"
 
-        regex_corte_final = re.compile(padrao_fim, re.MULTILINE)
+        # CORREÇÃO: Adicionado re.IGNORECASE (re.I) para os cortes serem case-insensitive
+        regex_corte_final = re.compile(padrao_fim, re.MULTILINE | re.IGNORECASE)
 
         texto_acumulado_materia = ""
         total_blocos = len(matches_inicio)
@@ -456,7 +470,6 @@ class ExtracaoService:
             else:
                 sub_texto_busca = texto_completo[ponto_inicio_conteudo:]
 
-            # Procura se alguma outra matéria surgiu no meio do caminho para cortar o bloco
             fim_match = regex_corte_final.search(sub_texto_busca)
             
             if fim_match:

@@ -142,19 +142,17 @@ class PdfSearchService:
         # Matérias flexíveis aceitam variações sequenciais complementares
         regras_materias = {
             "Língua Portuguesa": re.compile(r'\bLíngua\s+Portuguesa\b'),
-            "Informática": re.compile(r'\bInformática\b'),
-            "Analista de Tecnologia": re.compile(r'\bAnalista\s+de\s+Tecnologia\b'),
-            "Conhecimentos Específicos": re.compile(r'\bConhecimentos\s+Específicos\b'),
+            "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),            
             "Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico(?:\s*-\s*[A-ZÀ-Úa-zà-ú]+)?\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),            
-            #"Raciocínio Lógico": re.compile(r'\bRaciocínio\s+Lógico\b(?:[-\s]*[A-ZÀ-Úa-zà-ú]+)*'),
-            "Legislação": re.compile(r'\bLegislação\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*'),
-            "Noções de Informática": re.compile(r'\bNoções de Informática\b')
-
-            #"Matemática": re.compile(r'\bMatemática\b'),
-            #"Língua Inglesa": re.compile(r'\bLíngua\s+Inglesa\b'),
-            #"História": re.compile(r'\bHistória\b'),
-            #"Geografia": re.compile(r'\bGeografia\b'),
-            # "Direito": re.compile(r'\bDireito\b(?:\s+[A-ZÀ-Úa-zà-ú]+)*')
+            "Informática": re.compile(r'\b(?:Noções\s+de\s+)?Informática\b'),
+            "Conhecimentos Específicos": re.compile(r'\bConhecimentos\s+Específicos\b'),
+            "Tecnologia da Informação": re.compile(
+                r'\bTecnologia(?:\s+(?:da|de|em))?\s+Informação\b|'
+                r'\bAnalista(?:\s+(?:da|de|em))?\s+Tecnologia\b|'
+                r'\bAnalista(?:\s+(?:da|de|em))?\s+Sistemas?\b|'
+                r'\bCiência\s+de\s+Dados\b|'
+                r'\bBanco\s+de\s+Dados\b'
+            )
         }
 
         total_copias = 0
