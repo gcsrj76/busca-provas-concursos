@@ -10,7 +10,7 @@ class ViewProcessar(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent, fg_color="transparent")
 
-        self.lbl_titulo = ctk.CTkLabel(self, text="⚙️ Processar Provas (PDFs) - Separar Por Matérias)", font=("Arial", 18, "bold"))
+        self.lbl_titulo = ctk.CTkLabel(self, text="⚙️ Processar Provas (PDFs) - Separar Por Matérias", font=("Arial", 18, "bold"))
         self.lbl_titulo.pack(pady=15)
 
         # Mudamos o pack para não esticar totalmente (fill="x" removido) e centralizar os elementos agrupados

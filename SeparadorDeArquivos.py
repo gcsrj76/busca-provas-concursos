@@ -4,12 +4,12 @@ import shutil
 import re
 
 # Pasta raiz onde as subpastas serão criadas
-DESTINO_RAIZ = Path("/home/palinux/Área de trabalho/Concursos/PDFs FGV - Páginas 1 a 5/Provas por Matérias/Áreas de TI")
-ORIGEM = "/home/palinux/Área de trabalho/Concursos/PDFs FGV - Páginas 1 a 5/Prova"
+ORIGEM = "/home/palinux/Área de trabalho/Concursos - 2/PDFs - 1 a 7/Prova"
+DESTINO_RAIZ = Path("/home/palinux/Área de trabalho/Concursos - 2/Limpando")
 
 # Definição das subpastas
-PASTA_NOME = DESTINO_RAIZ / "Por Nome do Arquivo"
-PASTA_CONTEUDO = DESTINO_RAIZ / "Por Conteúdo"
+PASTA_NOME = DESTINO_RAIZ / "Conhecimentos Gerais"
+PASTA_CONTEUDO = DESTINO_RAIZ / "Tecnologia da Informação"
 
 # ====================================================
 # TERMOS DE BUSCA SEPARADOS POR PROPÓSITO
